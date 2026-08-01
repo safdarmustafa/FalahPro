@@ -100,11 +100,15 @@ class PrayerNotificationManager(private val context: Context) {
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setAutoCancel(true)
             .setContentIntent(contentPendingIntent)
-            .setFullScreenIntent(contentPendingIntent, true)
             .setDefaults(NotificationCompat.DEFAULT_VIBRATE)
 
         when (azanMode) {
-            AzanMode.FULL_SOUND -> builder.setSilent(true)
+            AzanMode.FULL_SOUND -> {
+                builder.setSilent(true)
+                // Full-screen intent only for Full Azan (heads-up / lock-screen wake).
+                // Notify Only must not auto-launch the Activity.
+                builder.setFullScreenIntent(contentPendingIntent, true)
+            }
             AzanMode.NOTIFICATION_ONLY -> {
                 // Short alert via defaults only; no full azan service.
             }
