@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "992445250455-3fmv40vge5i8f1ebre0f9o1o1if4ljpn.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.falahpro.app",
+            "certificate_hash": "081401b5eb5f8334869f491bfdab1e920cf88759"
+          }
+        },
+        {
           "client_id": "992445250455-5hg21e821v2okaaoiur40d0abb5mimag.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
