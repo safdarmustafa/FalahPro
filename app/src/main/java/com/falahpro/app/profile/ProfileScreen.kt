@@ -4,6 +4,7 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -43,8 +44,17 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.falahpro.app.BuildConfig
+import com.falahpro.app.R
 import com.falahpro.app.WebsiteLinks
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.auth.GoogleAuthProvider
+
+private const val TAG = "FalahProProfile"
 
 private val Gold = Color(0xFFE2C07A)
 private val Ink = Color(0xFF1A120F)
@@ -59,6 +69,132 @@ private fun openWebsite(context: Context, url: String) {
     } catch (_: ActivityNotFoundException) {
         Toast.makeText(context, "No browser available", Toast.LENGTH_SHORT).show()
     }
+}
+
+private fun openPlayStoreListing(context: Context) {
+    val packageName = "com.falahpro.app"
+    try {
+        context.startActivity(
+            Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse("market://details?id=$packageName")
+            )
+        )
+    } catch (_: ActivityNotFoundException) {
+        openWebsite(
+            context,
+            "https://play.google.com/store/apps/details?id=$packageName"
+        )
+    }
+}
+
+private fun shareApp(context: Context) {
+    val shareText =
+        "Check out Falah Pro – Built for Every Muslim.\n" +
+            "https://play.google.com/store/apps/details?id=com.falahpro.app"
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, shareText)
+    }
+    context.startActivity(Intent.createChooser(intent, null))
+}
+
+private fun googleSignInClient(context: Context) =
+    GoogleSignIn.getClient(
+        context,
+        GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestIdToken(context.getString(R.string.default_web_client_id))
+            .requestEmail()
+            .build()
+    )
+
+private fun signOutLocalSessions(context: Context, onComplete: () -> Unit) {
+    val client = googleSignInClient(context)
+    client.signOut().addOnCompleteListener {
+        FirebaseAuth.getInstance().signOut()
+        onComplete()
+    }
+}
+
+/**
+ * Firebase requires a recent login before [FirebaseUser.delete].
+ * Reauthenticate with the current Google session (silent), then delete.
+ */
+private fun deleteAccountWithGoogleReauth(
+    context: Context,
+    user: FirebaseUser,
+    onSuccess: () -> Unit,
+    onFinished: () -> Unit
+) {
+    val client = googleSignInClient(context)
+
+    fun proceedWithIdToken(idToken: String) {
+        val credential = GoogleAuthProvider.getCredential(idToken, null)
+        user.reauthenticate(credential)
+            .addOnCompleteListener { reauthTask ->
+                if (!reauthTask.isSuccessful) {
+                    val err = reauthTask.exception
+                    Log.e(TAG, "Delete account reauth failed: ${err?.message}", err)
+                    Toast.makeText(
+                        context,
+                        "Could not verify account: ${err?.localizedMessage ?: "unknown error"}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    onFinished()
+                    return@addOnCompleteListener
+                }
+
+                user.delete()
+                    .addOnCompleteListener { deleteTask ->
+                        if (deleteTask.isSuccessful) {
+                            client.signOut().addOnCompleteListener {
+                                FirebaseAuth.getInstance().signOut()
+                                Toast.makeText(
+                                    context,
+                                    "Account deleted successfully",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                onSuccess()
+                                onFinished()
+                            }
+                        } else {
+                            val err = deleteTask.exception
+                            Log.e(TAG, "Delete account failed: ${err?.message}", err)
+                            Toast.makeText(
+                                context,
+                                "Could not delete account: ${err?.localizedMessage ?: "unknown error"}",
+                                Toast.LENGTH_LONG
+                            ).show()
+                            onFinished()
+                        }
+                    }
+            }
+    }
+
+    client.silentSignIn()
+        .addOnCompleteListener { silentTask ->
+            val account = try {
+                silentTask.getResult(ApiException::class.java)
+            } catch (e: Exception) {
+                Log.w(TAG, "silentSignIn failed, trying last signed-in account: ${e.message}")
+                GoogleSignIn.getLastSignedInAccount(context)
+            }
+
+            val idToken = account?.idToken
+            if (idToken.isNullOrBlank()) {
+                val err = silentTask.exception
+                Log.e(TAG, "Delete account failed: no Google idToken. ${err?.message}", err)
+                Toast.makeText(
+                    context,
+                    "Could not delete account: Google session expired. Please sign in again.",
+                    Toast.LENGTH_LONG
+                ).show()
+                onFinished()
+                return@addOnCompleteListener
+            }
+
+            proceedWithIdToken(idToken)
+        }
 }
 
 @Composable
@@ -110,20 +246,15 @@ fun ProfileScreen(
                             return@TextButton
                         }
                         isDeleting = true
-                        currentUser.delete()
-                            .addOnCompleteListener { task ->
+                        deleteAccountWithGoogleReauth(
+                            context = context,
+                            user = currentUser,
+                            onSuccess = { onLogout() },
+                            onFinished = {
                                 isDeleting = false
                                 showDeleteDialog = false
-                                if (task.isSuccessful) {
-                                    onLogout()
-                                } else {
-                                    Toast.makeText(
-                                        context,
-                                        "Could not delete account. Please sign in again and retry.",
-                                        Toast.LENGTH_LONG
-                                    ).show()
-                                }
                             }
+                        )
                     }
                 ) {
                     Text(
@@ -207,6 +338,19 @@ fun ProfileScreen(
             // —— Account ——
             ProfileSection(title = "Account") {
                 ProfileMenuItem(
+                    title = "Sign Out",
+                    onClick = {
+                        signOutLocalSessions(context) {
+                            Toast.makeText(
+                                context,
+                                "Signed out successfully",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            onLogout()
+                        }
+                    }
+                )
+                ProfileMenuItem(
                     title = "Delete Account",
                     titleColor = Danger,
                     showDivider = false,
@@ -239,24 +383,12 @@ fun ProfileScreen(
                 )
                 ProfileMenuItem(
                     title = "Rate App",
-                    onClick = {
-                        Toast.makeText(
-                            context,
-                            "Coming Soon",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
+                    onClick = { openPlayStoreListing(context) }
                 )
                 ProfileMenuItem(
                     title = "Share App",
                     showDivider = false,
-                    onClick = {
-                        Toast.makeText(
-                            context,
-                            "Coming Soon",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
+                    onClick = { shareApp(context) }
                 )
             }
 
@@ -264,7 +396,7 @@ fun ProfileScreen(
 
             // —— Footer ——
             Text(
-                text = "Version 1.0.0",
+                text = "Version ${BuildConfig.VERSION_NAME}",
                 fontSize = 13.sp,
                 color = Muted,
                 textAlign = TextAlign.Center
