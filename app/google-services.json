@@ -30,6 +30,14 @@
           }
         },
         {
+          "client_id": "992445250455-sb7t8pn75b3pqmph9qa58lkkq1reuf96.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.falahpro.app",
+            "certificate_hash": "a3d224385d0d4d8dcdc7754fcf4d5c6703182752"
+          }
+        },
+        {
           "client_id": "992445250455-m43kjsoh2rmd7vt5dvjkq6jsp5ve6i4s.apps.googleusercontent.com",
           "client_type": 3
         }
