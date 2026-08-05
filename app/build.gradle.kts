@@ -1,7 +1,6 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
-    alias(libs.plugins.google.gms.google.services)
 }
 
 android {
@@ -14,10 +13,21 @@ android {
         applicationId = "com.falahpro.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 4
+        versionCode = 5
         versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField(
+            "String",
+            "SUPABASE_URL",
+            "\"https://srdqdvavbznhjbaiajxk.supabase.co\""
+        )
+        buildConfigField(
+            "String",
+            "SUPABASE_ANON_KEY",
+            "\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNyZHFkdmF2YnpuaGpiYWlhanhrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU4ODI3NTIsImV4cCI6MjEwMTQ1ODc1Mn0.BYOAuR9ZTiMRIyi3WORzaG2AMcw5tu_Or9m4q4OMvcU\""
+        )
     }
 
     buildTypes {
@@ -56,15 +66,17 @@ dependencies {
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
-    implementation("io.coil-kt:coil-compose:2.6.0")
     implementation("androidx.compose.material3:material3:1.2.1")
     implementation("androidx.core:core-splashscreen:1.2.0")
     implementation("androidx.datastore:datastore-preferences:1.0.0")
 
-    // ✅ FIREBASE + GOOGLE SIGN IN
-    implementation(platform("com.google.firebase:firebase-bom:32.7.1"))
-    implementation("com.google.firebase:firebase-auth-ktx")
-    implementation("com.google.android.gms:play-services-auth:21.0.0")
+    // ✅ SUPABASE AUTH
+    // 3.2.6 is the newest stable auth-kt compatible with this project's Kotlin 2.2.x
+    // (3.3+ ships Kotlin 2.4 metadata and fails compilation without a Kotlin upgrade).
+    implementation(platform("io.github.jan-tennert.supabase:bom:3.2.6"))
+    implementation("io.github.jan-tennert.supabase:auth-kt")
+    implementation("io.ktor:ktor-client-android:3.3.1")
+    implementation("androidx.security:security-crypto:1.1.0")
 
     implementation("androidx.navigation:navigation-compose:2.7.7")
 

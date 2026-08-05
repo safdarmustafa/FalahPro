@@ -18,7 +18,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,7 +33,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.falahpro.app.auth.LoginScreen
+import com.falahpro.app.auth.AuthNavigation
+import com.falahpro.app.auth.SupabaseAuthManager
 import com.falahpro.app.dua.DuaDetailScreen
 import com.falahpro.app.dua.DuaLibraryScreen
 import com.falahpro.app.dua.DuaListScreen
@@ -45,7 +46,7 @@ import com.falahpro.app.prayer.rememberPrayerVisualEffects
 import com.falahpro.app.qibla.QiblaScreen
 import com.falahpro.app.tasbih.TasbihScreen
 import com.falahpro.app.ui.theme.SplashScreenJcTheme
-import com.google.firebase.auth.FirebaseAuth
+import io.github.jan.supabase.auth.status.SessionStatus
 import java.util.concurrent.atomic.AtomicBoolean
 
 class FalahPro : ComponentActivity() {
@@ -250,7 +251,6 @@ fun AppNavigation(
             composable("profile") {
                 ProfileScreen(
                     onLogout = {
-                        FirebaseAuth.getInstance().signOut()
                         navController.navigate("tasbih") {
                             popUpTo(0)
                         }
@@ -265,23 +265,38 @@ fun AppNavigation(
 fun AuthGate(
     onFirstScreenDrawn: () -> Unit = {}
 ) {
+    var isLoggedIn by remember { mutableStateOf(false) }
+    var authResolved by remember { mutableStateOf(false) }
 
-    val auth = FirebaseAuth.getInstance()
-    var isLoggedIn by remember { mutableStateOf(auth.currentUser != null) }
-
-    DisposableEffect(Unit) {
-        val listener = FirebaseAuth.AuthStateListener { firebaseAuth ->
-            isLoggedIn = firebaseAuth.currentUser != null
-        }
-
-        auth.addAuthStateListener(listener)
-
-        onDispose {
-            auth.removeAuthStateListener(listener)
+    LaunchedEffect(Unit) {
+        SupabaseAuthManager.sessionStatus.collect { status ->
+            when (status) {
+                is SessionStatus.Authenticated -> {
+                    isLoggedIn = true
+                    authResolved = true
+                }
+                is SessionStatus.NotAuthenticated -> {
+                    isLoggedIn = false
+                    authResolved = true
+                }
+                SessionStatus.Initializing -> {
+                    // Wait for storage load before deciding Login vs App.
+                }
+                is SessionStatus.RefreshFailure -> {
+                    isLoggedIn = SupabaseAuthManager.isLoggedIn()
+                    authResolved = true
+                }
+            }
         }
     }
 
-    if (isLoggedIn) {
+    if (!authResolved) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .onGloballyPositioned { onFirstScreenDrawn() }
+        )
+    } else if (isLoggedIn) {
         AppNavigation(onFirstScreenDrawn = onFirstScreenDrawn)
     } else {
         Box(
@@ -289,7 +304,7 @@ fun AuthGate(
                 .fillMaxSize()
                 .onGloballyPositioned { onFirstScreenDrawn() }
         ) {
-            LoginScreen(
+            AuthNavigation(
                 onLoginSuccess = {
                     isLoggedIn = true
                 }

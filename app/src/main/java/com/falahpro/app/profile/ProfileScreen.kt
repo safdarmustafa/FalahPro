@@ -37,22 +37,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import com.falahpro.app.BuildConfig
-import com.falahpro.app.R
 import com.falahpro.app.WebsiteLinks
-import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.auth.api.signin.GoogleSignInOptions
-import com.google.android.gms.common.api.ApiException
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.FirebaseUser
-import com.google.firebase.auth.GoogleAuthProvider
+import com.falahpro.app.auth.DeleteAccountResult
+import com.falahpro.app.auth.SupabaseAuthManager
+import io.github.jan.supabase.auth.user.UserInfo
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 
 private const val TAG = "FalahProProfile"
 
@@ -99,114 +96,20 @@ private fun shareApp(context: Context) {
     context.startActivity(Intent.createChooser(intent, null))
 }
 
-private fun googleSignInClient(context: Context) =
-    GoogleSignIn.getClient(
-        context,
-        GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-            .requestIdToken(context.getString(R.string.default_web_client_id))
-            .requestEmail()
-            .build()
-    )
-
-private fun signOutLocalSessions(context: Context, onComplete: () -> Unit) {
-    val client = googleSignInClient(context)
-    client.signOut().addOnCompleteListener {
-        FirebaseAuth.getInstance().signOut()
-        onComplete()
-    }
-}
-
-/**
- * Firebase requires a recent login before [FirebaseUser.delete].
- * Reauthenticate with the current Google session (silent), then delete.
- */
-private fun deleteAccountWithGoogleReauth(
-    context: Context,
-    user: FirebaseUser,
-    onSuccess: () -> Unit,
-    onFinished: () -> Unit
-) {
-    val client = googleSignInClient(context)
-
-    fun proceedWithIdToken(idToken: String) {
-        val credential = GoogleAuthProvider.getCredential(idToken, null)
-        user.reauthenticate(credential)
-            .addOnCompleteListener { reauthTask ->
-                if (!reauthTask.isSuccessful) {
-                    val err = reauthTask.exception
-                    Log.e(TAG, "Delete account reauth failed: ${err?.message}", err)
-                    Toast.makeText(
-                        context,
-                        "Could not verify account: ${err?.localizedMessage ?: "unknown error"}",
-                        Toast.LENGTH_LONG
-                    ).show()
-                    onFinished()
-                    return@addOnCompleteListener
-                }
-
-                user.delete()
-                    .addOnCompleteListener { deleteTask ->
-                        if (deleteTask.isSuccessful) {
-                            client.signOut().addOnCompleteListener {
-                                FirebaseAuth.getInstance().signOut()
-                                Toast.makeText(
-                                    context,
-                                    "Account deleted successfully",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                                onSuccess()
-                                onFinished()
-                            }
-                        } else {
-                            val err = deleteTask.exception
-                            Log.e(TAG, "Delete account failed: ${err?.message}", err)
-                            Toast.makeText(
-                                context,
-                                "Could not delete account: ${err?.localizedMessage ?: "unknown error"}",
-                                Toast.LENGTH_LONG
-                            ).show()
-                            onFinished()
-                        }
-                    }
-            }
-    }
-
-    client.silentSignIn()
-        .addOnCompleteListener { silentTask ->
-            val account = try {
-                silentTask.getResult(ApiException::class.java)
-            } catch (e: Exception) {
-                Log.w(TAG, "silentSignIn failed, trying last signed-in account: ${e.message}")
-                GoogleSignIn.getLastSignedInAccount(context)
-            }
-
-            val idToken = account?.idToken
-            if (idToken.isNullOrBlank()) {
-                val err = silentTask.exception
-                Log.e(TAG, "Delete account failed: no Google idToken. ${err?.message}", err)
-                Toast.makeText(
-                    context,
-                    "Could not delete account: Google session expired. Please sign in again.",
-                    Toast.LENGTH_LONG
-                ).show()
-                onFinished()
-                return@addOnCompleteListener
-            }
-
-            proceedWithIdToken(idToken)
-        }
-}
-
 @Composable
 fun ProfileScreen(
     onLogout: () -> Unit
 ) {
     val context = LocalContext.current
-    val user = FirebaseAuth.getInstance().currentUser
+    val scope = rememberCoroutineScope()
+    var user by remember { mutableStateOf<UserInfo?>(null) }
 
-    val name = user?.displayName ?: "Falah Pro User"
-    val email = user?.email ?: "No Email"
-    val photoUrl = user?.photoUrl
+    LaunchedEffect(Unit) {
+        user = SupabaseAuthManager.currentUser()
+    }
+
+    val name = SupabaseAuthManager.displayName(user)
+    val email = SupabaseAuthManager.email(user)
 
     var showDeleteDialog by remember { mutableStateOf(false) }
     var isDeleting by remember { mutableStateOf(false) }
@@ -239,22 +142,29 @@ fun ProfileScreen(
                 TextButton(
                     enabled = !isDeleting,
                     onClick = {
-                        val currentUser = FirebaseAuth.getInstance().currentUser
-                        if (currentUser == null) {
+                        if (!SupabaseAuthManager.isLoggedIn()) {
                             showDeleteDialog = false
                             onLogout()
                             return@TextButton
                         }
                         isDeleting = true
-                        deleteAccountWithGoogleReauth(
-                            context = context,
-                            user = currentUser,
-                            onSuccess = { onLogout() },
-                            onFinished = {
-                                isDeleting = false
-                                showDeleteDialog = false
+                        scope.launch {
+                            when (SupabaseAuthManager.deleteAccount()) {
+                                DeleteAccountResult.NotImplemented -> {
+                                    // TODO(SECURE_DELETE): Invoke Edge Function `delete-account`
+                                    // with Authorization: Bearer <access_token>. Backend must use
+                                    // the Supabase service role to admin.deleteUser(uid).
+                                    Log.w(TAG, "Delete account blocked: secure backend endpoint not configured")
+                                    Toast.makeText(
+                                        context,
+                                        "Account deletion is temporarily unavailable. Please contact support.",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                    isDeleting = false
+                                    showDeleteDialog = false
+                                }
                             }
-                        )
+                        }
                     }
                 ) {
                     Text(
@@ -291,31 +201,20 @@ fun ProfileScreen(
         ) {
             Spacer(modifier = Modifier.height(36.dp))
 
-            // —— Existing profile header ——
-            if (photoUrl != null) {
-                AsyncImage(
-                    model = photoUrl,
-                    contentDescription = "Profile",
-                    modifier = Modifier
-                        .size(120.dp)
-                        .clip(CircleShape),
-                    contentScale = ContentScale.Crop
+            // —— Profile header ——
+            Box(
+                modifier = Modifier
+                    .size(120.dp)
+                    .clip(CircleShape)
+                    .background(Gold),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = name.firstOrNull()?.uppercaseChar()?.toString() ?: "F",
+                    fontSize = 42.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Ink
                 )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .size(120.dp)
-                        .clip(CircleShape)
-                        .background(Gold),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = name.first().toString(),
-                        fontSize = 42.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Ink
-                    )
-                }
             }
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -340,7 +239,12 @@ fun ProfileScreen(
                 ProfileMenuItem(
                     title = "Sign Out",
                     onClick = {
-                        signOutLocalSessions(context) {
+                        scope.launch {
+                            try {
+                                SupabaseAuthManager.signOut()
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Supabase signOut failed: ${e.message}", e)
+                            }
                             Toast.makeText(
                                 context,
                                 "Signed out successfully",
