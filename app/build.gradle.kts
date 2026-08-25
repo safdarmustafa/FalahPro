@@ -13,8 +13,8 @@ android {
         applicationId = "com.falahpro.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 5
-        versionName = "1.0.0"
+        versionCode = 6
+        versionName = "1.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -67,6 +67,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation("androidx.compose.material3:material3:1.2.1")
+    implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.core:core-splashscreen:1.2.0")
     implementation("androidx.datastore:datastore-preferences:1.0.0")
 

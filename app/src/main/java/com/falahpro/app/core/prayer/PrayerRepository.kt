@@ -1,6 +1,8 @@
 package com.falahpro.app.core.prayer
 
 import android.content.Context
+import androidx.datastore.preferences.core.MutablePreferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
@@ -67,8 +69,60 @@ class PrayerRepository(private val context: Context) {
     private val verifiedAlarmCountKey = intPreferencesKey("verified_alarm_count")
     private val repairedAlarmCountKey = intPreferencesKey("repaired_alarm_count")
     private val alarmRequestCodesKey = stringPreferencesKey("alarm_request_codes")
+    private val firedPrayersDateKey = stringPreferencesKey("fired_prayers_date")
 
     private fun timeKey(prayer: String) = stringPreferencesKey("time_$prayer")
+
+    private fun firedPrayerKey(prayerName: String) = booleanPreferencesKey("fired_prayer_$prayerName")
+
+    private fun resetFiredPrayersForDateIfNeeded(
+        prefs: MutablePreferences,
+        today: String,
+        logReset: Boolean
+    ) {
+        val previousDate = prefs[firedPrayersDateKey]
+        if (previousDate != null && previousDate != today) {
+            PrayerConstants.PRAYER_NAMES.forEach { prefs.remove(firedPrayerKey(it)) }
+            if (logReset) {
+                PrayerLog.firedPrayersReset(previousDate, today)
+            }
+        }
+        prefs[firedPrayersDateKey] = today
+    }
+
+    /** Clears stale fired-prayer flags when the local calendar date has changed. */
+    suspend fun ensureFiredPrayersDateCurrent() {
+        context.prayerDataStore.edit { prefs ->
+            resetFiredPrayersForDateIfNeeded(prefs, LocalDate.now().toString(), logReset = true)
+        }
+    }
+
+    /**
+     * Atomically marks [prayerName] as fired for today.
+     * @return true if this invocation newly accepted the fire; false if already fired today.
+     */
+    suspend fun tryMarkPrayerFiredToday(prayerName: String): Boolean {
+        var accepted = false
+        context.prayerDataStore.edit { prefs ->
+            val today = LocalDate.now().toString()
+            resetFiredPrayersForDateIfNeeded(prefs, today, logReset = true)
+            val key = firedPrayerKey(prayerName)
+            if (prefs[key] == true) {
+                accepted = false
+            } else {
+                prefs[key] = true
+                accepted = true
+            }
+        }
+        return accepted
+    }
+
+    suspend fun isPrayerFiredToday(prayerName: String): Boolean {
+        val prefs = context.prayerDataStore.data.first()
+        val today = LocalDate.now().toString()
+        if (prefs[firedPrayersDateKey] != today) return false
+        return prefs[firedPrayerKey(prayerName)] == true
+    }
 
     suspend fun recordNotificationEvent(prayerName: String) {
         val now = System.currentTimeMillis()

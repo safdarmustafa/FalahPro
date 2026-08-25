@@ -1,8 +1,9 @@
 package com.falahpro.app.dua
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -10,29 +11,25 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.falahpro.app.dua.json.JsonDua
 import com.falahpro.app.dua.repository.DuaRepository
-
-private val DuaBgTop = Color(0xFF241612)
-private val DuaBgBottom = Color(0xFF140C09)
-private val DuaGold = Color(0xFFE2C07A)
-private val DuaCard = Color(0xFF2C1B16)
+import com.falahpro.app.ui.theme.FalahColors
+import com.falahpro.app.ui.theme.FalahShapes
+import com.falahpro.app.ui.theme.FalahSpacing
 
 @Composable
 fun DuaListScreen(
@@ -40,6 +37,7 @@ fun DuaListScreen(
     onBack: () -> Unit,
     onDuaClick: (JsonDua) -> Unit
 ) {
+    // ── ALL LOGIC UNCHANGED ──────────────────────────────────────────────────
     val context = LocalContext.current
     val repository = remember { DuaRepository() }
 
@@ -56,40 +54,58 @@ fun DuaListScreen(
                 word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
             }
     }
+    // ── END LOGIC ────────────────────────────────────────────────────────────
 
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(DuaBgTop, DuaBgBottom)))
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+            .background(FalahColors.Ivory)
     ) {
         item {
-            Text(
-                text = "← Back",
-                color = DuaGold,
-                fontSize = 15.sp,
-                modifier = Modifier.clickable(onClick = onBack)
+            // Status-bar safe header
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = FalahSpacing.screenRegular, vertical = FalahSpacing.sm)
+            ) {
+                // Back button
+                Text(
+                    text = "← Back",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = FalahColors.OldMoneyGreen,
+                    modifier = Modifier
+                        .clickable(
+                            indication = null,
+                            interactionSource = remember { MutableInteractionSource() },
+                            onClick = onBack
+                        )
+                        .padding(vertical = FalahSpacing.xxs)
+                )
+
+                Spacer(Modifier.height(FalahSpacing.sm))
+
+                Text(
+                    text = categoryTitle,
+                    style = MaterialTheme.typography.titleLarge,
+                    color = FalahColors.Forest
+                )
+                Spacer(Modifier.height(FalahSpacing.xxs))
+                Text(
+                    text = if (duas.isEmpty()) "0 Duas" else "${duas.size} Duas",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = FalahColors.WarmBrown
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(FalahColors.WarmSand)
             )
 
-            Spacer(modifier = Modifier.height(20.dp))
-
-            Text(
-                text = categoryTitle,
-                color = DuaGold,
-                fontWeight = FontWeight.Bold,
-                fontSize = 28.sp
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = if (duas.isEmpty()) "0 Duas" else "${duas.size} Duas",
-                color = Color.LightGray,
-                fontSize = 14.sp
-            )
-
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(Modifier.height(FalahSpacing.md))
         }
 
         if (duas.isEmpty()) {
@@ -97,13 +113,14 @@ fun DuaListScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .padding(horizontal = FalahSpacing.screenRegular)
                         .padding(vertical = 48.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "No duas available.",
-                        color = Color.LightGray,
-                        fontSize = 16.sp
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = FalahColors.WarmBrown
                     )
                 }
             }
@@ -115,6 +132,8 @@ fun DuaListScreen(
                 )
             }
         }
+
+        item { Spacer(Modifier.height(FalahSpacing.md)) }
     }
 }
 
@@ -123,36 +142,40 @@ private fun DuaListItemCard(
     dua: JsonDua,
     onClick: () -> Unit
 ) {
-    Card(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = DuaCard)
+            .padding(horizontal = FalahSpacing.screenRegular, vertical = FalahSpacing.xs)
+            .clip(FalahShapes.Card)
+            .background(FalahColors.ButterCream)
+            .border(1.dp, FalahColors.WarmSand, FalahShapes.Card)
+            .clickable(
+                indication = null,
+                interactionSource = remember { MutableInteractionSource() },
+                onClick = onClick
+            )
+            .padding(FalahSpacing.md)
     ) {
-        Column(modifier = Modifier.padding(18.dp)) {
+        Column {
             Text(
                 text = dua.title,
-                color = DuaGold,
-                fontWeight = FontWeight.Bold,
-                fontSize = 18.sp
+                style = MaterialTheme.typography.titleMedium,
+                color = FalahColors.Forest,
+                fontWeight = FontWeight.SemiBold
             )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
+            Spacer(Modifier.height(FalahSpacing.xxs))
             Text(
                 text = dua.whenToRecite,
-                color = Color.LightGray,
-                fontSize = 14.sp
+                style = MaterialTheme.typography.bodyMedium,
+                color = FalahColors.WarmBrown
             )
-
-            Spacer(modifier = Modifier.height(6.dp))
-
+            Spacer(Modifier.height(FalahSpacing.xxs))
             Text(
                 text = dua.reference.book,
-                color = DuaGold.copy(alpha = 0.7f),
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium
+                style = MaterialTheme.typography.labelSmall,
+                color = FalahColors.Brass,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }

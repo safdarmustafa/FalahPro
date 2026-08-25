@@ -7,6 +7,7 @@ import android.net.Uri
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,44 +22,42 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.falahpro.app.BuildConfig
 import com.falahpro.app.WebsiteLinks
 import com.falahpro.app.auth.DeleteAccountResult
 import com.falahpro.app.auth.SupabaseAuthManager
+import com.falahpro.app.ui.theme.FalahColors
+import com.falahpro.app.ui.theme.FalahShapes
+import com.falahpro.app.ui.theme.FalahSpacing
 import io.github.jan.supabase.auth.user.UserInfo
 import kotlinx.coroutines.launch
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.rememberCoroutineScope
 
 private const val TAG = "FalahProProfile"
 
-private val Gold = Color(0xFFE2C07A)
-private val Ink = Color(0xFF1A120F)
-private val CardBg = Color.White.copy(alpha = 0.06f)
-private val DividerColor = Color.White.copy(alpha = 0.08f)
-private val Muted = Color.White.copy(alpha = 0.55f)
-private val Danger = Color(0xFFE57373)
+// ── Utility functions — UNCHANGED ─────────────────────────────────────────────
 
 private fun openWebsite(context: Context, url: String) {
     try {
@@ -72,10 +71,7 @@ private fun openPlayStoreListing(context: Context) {
     val packageName = "com.falahpro.app"
     try {
         context.startActivity(
-            Intent(
-                Intent.ACTION_VIEW,
-                Uri.parse("market://details?id=$packageName")
-            )
+            Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName"))
         )
     } catch (_: ActivityNotFoundException) {
         openWebsite(
@@ -96,6 +92,10 @@ private fun shareApp(context: Context) {
     context.startActivity(Intent.createChooser(intent, null))
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ProfileScreen — all Supabase logic UNCHANGED
+// ─────────────────────────────────────────────────────────────────────────────
+
 @Composable
 fun ProfileScreen(
     onLogout: () -> Unit
@@ -104,6 +104,7 @@ fun ProfileScreen(
     val scope = rememberCoroutineScope()
     var user by remember { mutableStateOf<UserInfo?>(null) }
 
+    // ── ALL SUPABASE LOGIC UNCHANGED ─────────────────────────────────────────
     LaunchedEffect(Unit) {
         user = SupabaseAuthManager.currentUser()
     }
@@ -113,15 +114,9 @@ fun ProfileScreen(
 
     var showDeleteDialog by remember { mutableStateOf(false) }
     var isDeleting by remember { mutableStateOf(false) }
+    // ── END LOGIC ────────────────────────────────────────────────────────────
 
-    val background = Brush.verticalGradient(
-        colors = listOf(
-            Color(0xFF1A120F),
-            Color(0xFF2A1C18),
-            Color(0xFF3E2A24)
-        )
-    )
-
+    // Delete account dialog
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { if (!isDeleting) showDeleteDialog = false },
@@ -129,13 +124,13 @@ fun ProfileScreen(
                 Text(
                     text = "Delete Account",
                     fontWeight = FontWeight.SemiBold,
-                    color = Ink
+                    color = FalahColors.InkBrown
                 )
             },
             text = {
                 Text(
                     text = "This will permanently delete your Falah Pro account. This action cannot be undone.",
-                    color = Ink.copy(alpha = 0.75f)
+                    color = FalahColors.InkBrown.copy(alpha = 0.75f)
                 )
             },
             confirmButton = {
@@ -169,7 +164,7 @@ fun ProfileScreen(
                 ) {
                     Text(
                         text = if (isDeleting) "Deleting…" else "Delete",
-                        color = Danger,
+                        color = FalahColors.Danger,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
@@ -179,7 +174,7 @@ fun ProfileScreen(
                     enabled = !isDeleting,
                     onClick = { showDeleteDialog = false }
                 ) {
-                    Text("Cancel", color = Ink.copy(alpha = 0.7f))
+                    Text("Cancel", color = FalahColors.InkBrown.copy(alpha = 0.7f))
                 }
             }
         )
@@ -188,53 +183,63 @@ fun ProfileScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(background)
+            .background(FalahColors.Ivory)
     ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
                 .statusBarsPadding()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp)
-                .padding(bottom = 32.dp),
+                .padding(horizontal = FalahSpacing.screenRegular)
+                .padding(bottom = FalahSpacing.xl),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(36.dp))
+            Spacer(modifier = Modifier.height(FalahSpacing.xl))
 
-            // —— Profile header ——
+            // ── Profile header ───────────────────────────────────────────────
             Box(
                 modifier = Modifier
-                    .size(120.dp)
+                    .size(96.dp)
+                    .shadow(4.dp, CircleShape, ambientColor = FalahColors.Forest.copy(0.2f))
                     .clip(CircleShape)
-                    .background(Gold),
+                    .background(FalahColors.Forest)
+                    .border(2.dp, FalahColors.Brass.copy(alpha = 0.55f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = name.firstOrNull()?.uppercaseChar()?.toString() ?: "F",
-                    fontSize = 42.sp,
+                    style = MaterialTheme.typography.displaySmall,
                     fontWeight = FontWeight.Bold,
-                    color = Ink
+                    color = FalahColors.SoftBrass
                 )
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(FalahSpacing.md))
 
             Text(
                 text = name,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                color = Gold
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = FalahColors.Forest,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
+
+            Spacer(modifier = Modifier.height(FalahSpacing.xxs))
 
             Text(
                 text = email,
-                fontSize = 14.sp,
-                color = Color.White.copy(alpha = 0.7f)
+                style = MaterialTheme.typography.bodyMedium,
+                color = FalahColors.WarmBrown,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
 
-            Spacer(modifier = Modifier.height(36.dp))
+            Spacer(modifier = Modifier.height(FalahSpacing.xl))
 
-            // —— Account ——
+            // ── Account ──────────────────────────────────────────────────────
             ProfileSection(title = "Account") {
                 ProfileMenuItem(
                     title = "Sign Out",
@@ -256,15 +261,15 @@ fun ProfileScreen(
                 )
                 ProfileMenuItem(
                     title = "Delete Account",
-                    titleColor = Danger,
+                    titleColor = FalahColors.Danger,
                     showDivider = false,
                     onClick = { showDeleteDialog = true }
                 )
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(FalahSpacing.md))
 
-            // —— Legal ——
+            // ── Legal ─────────────────────────────────────────────────────────
             ProfileSection(title = "Legal") {
                 ProfileMenuItem(
                     title = "Privacy Policy",
@@ -277,9 +282,9 @@ fun ProfileScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(FalahSpacing.md))
 
-            // —— Support ——
+            // ── Support ───────────────────────────────────────────────────────
             ProfileSection(title = "Support") {
                 ProfileMenuItem(
                     title = "Contact Support",
@@ -296,26 +301,30 @@ fun ProfileScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(36.dp))
+            Spacer(modifier = Modifier.height(FalahSpacing.xl))
 
-            // —— Footer ——
+            // ── Footer ────────────────────────────────────────────────────────
             Text(
                 text = "Version ${BuildConfig.VERSION_NAME}",
-                fontSize = 13.sp,
-                color = Muted,
+                style = MaterialTheme.typography.labelMedium,
+                color = FalahColors.WarmBrown.copy(alpha = 0.65f),
                 textAlign = TextAlign.Center
             )
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(FalahSpacing.xxs))
             Text(
                 text = "Built for Every Muslim",
-                fontSize = 13.sp,
+                style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Medium,
-                color = Gold.copy(alpha = 0.85f),
+                color = FalahColors.Brass.copy(alpha = 0.85f),
                 textAlign = TextAlign.Center
             )
         }
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Section — Butter Cream card, WarmBrown label
+// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun ProfileSection(
@@ -324,28 +333,32 @@ private fun ProfileSection(
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
-            text = title,
-            fontSize = 13.sp,
+            text = title.uppercase(),
+            style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.SemiBold,
-            color = Gold.copy(alpha = 0.9f),
-            letterSpacing = 0.6.sp,
-            modifier = Modifier.padding(start = 4.dp, bottom = 10.dp)
+            color = FalahColors.WarmBrown.copy(alpha = 0.8f),
+            modifier = Modifier.padding(start = FalahSpacing.xxs, bottom = FalahSpacing.xs)
         )
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(18.dp))
-                .background(CardBg)
+                .clip(FalahShapes.Card)
+                .background(FalahColors.ButterCream)
+                .border(1.dp, FalahColors.WarmSand, FalahShapes.Card)
         ) {
             content()
         }
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Menu item — all click behavior UNCHANGED
+// ─────────────────────────────────────────────────────────────────────────────
+
 @Composable
 private fun ProfileMenuItem(
     title: String,
-    titleColor: Color = Color.White,
+    titleColor: Color = FalahColors.InkBrown,
     showDivider: Boolean = true,
     onClick: () -> Unit
 ) {
@@ -354,28 +367,30 @@ private fun ProfileMenuItem(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable(onClick = onClick)
-                .padding(horizontal = 18.dp, vertical = 16.dp),
+                .padding(horizontal = FalahSpacing.md, vertical = FalahSpacing.md),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = title,
-                fontSize = 16.sp,
+                style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Medium,
-                color = titleColor
+                color = titleColor,
+                modifier = Modifier.weight(1f)
             )
             Text(
                 text = "›",
-                fontSize = 20.sp,
-                color = Muted
+                style = MaterialTheme.typography.titleLarge,
+                color = FalahColors.WarmBrown.copy(alpha = 0.6f)
             )
         }
         if (showDivider) {
             HorizontalDivider(
-                modifier = Modifier.padding(horizontal = 18.dp),
+                modifier = Modifier.padding(horizontal = FalahSpacing.md),
                 thickness = 1.dp,
-                color = DividerColor
+                color = FalahColors.WarmSand
             )
         }
     }
 }
+

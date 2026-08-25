@@ -59,10 +59,15 @@ object PrayerLog {
     fun timeChanged() = event("TIME_CHANGED")
     fun localeChanged() = event("LOCALE_CHANGED")
     fun cacheHit(date: String) = event("CACHE_HIT", "date=$date")
-    fun cacheMiss(date: String) = event("CACHE_MISS", "date=$date")
     fun cacheInvalidated() = event("CACHE_INVALIDATED")
     fun locationChanged(oldLat: Double, oldLng: Double, newLat: Double, newLng: Double) =
         event("LOCATION_CHANGED", "old=$oldLat,$oldLng new=$newLat,$newLng")
     fun receiverEntered(prayer: String) = event("RECEIVER_ENTERED", "prayer=$prayer")
     fun exactAlarmDenied() = warn("EXACT_ALARM_DENIED", "user must grant Alarms & reminders")
+    fun prayerAlarmAccepted(prayer: String) = event("PRAYER_ALARM_ACCEPTED", "prayer=$prayer")
+    fun duplicateAlarmIgnored(prayer: String) = warn("DUPLICATE_ALARM_IGNORED", "prayer=$prayer")
+    fun earlyAlarmDetected(prayer: String, earlyByMs: Long) =
+        warn("EARLY_ALARM_DETECTED", "prayer=$prayer earlyByMs=$earlyByMs")
+    fun firedPrayersReset(previousDate: String, newDate: String) =
+        event("FIRED_PRAYERS_RESET", "previousDate=$previousDate newDate=$newDate")
 }

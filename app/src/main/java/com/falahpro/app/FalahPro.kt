@@ -1,20 +1,38 @@
 package com.falahpro.app
 
 import android.Manifest
+import android.graphics.Color as AndroidColor
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.View
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.union
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
+import androidx.compose.material.icons.outlined.Explore
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,8 +42,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -45,7 +65,8 @@ import com.falahpro.app.prayer.rememberPrayerViewModel
 import com.falahpro.app.prayer.rememberPrayerVisualEffects
 import com.falahpro.app.qibla.QiblaScreen
 import com.falahpro.app.tasbih.TasbihScreen
-import com.falahpro.app.ui.theme.SplashScreenJcTheme
+import com.falahpro.app.ui.theme.FalahColors
+import com.falahpro.app.ui.theme.FalahProTheme
 import io.github.jan.supabase.auth.status.SessionStatus
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -74,14 +95,23 @@ class FalahPro : ComponentActivity() {
         }
 
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.light(
+                AndroidColor.TRANSPARENT,
+                AndroidColor.TRANSPARENT
+            ),
+            navigationBarStyle = SystemBarStyle.light(
+                AndroidColor.TRANSPARENT,
+                AndroidColor.TRANSPARENT
+            )
+        )
 
         setContent {
-            SplashScreenJcTheme(dynamicColor = false) {
+            FalahProTheme {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(AppBackground)
+                        .background(FalahColors.Ivory)
                 ) {
                     AuthGate(
                         onFirstScreenDrawn = {
@@ -110,9 +140,21 @@ class FalahPro : ComponentActivity() {
 
     companion object {
         private const val SPLASH_DURATION_MS = 1_000L
-        private val AppBackground = Color(0xFF1A120F)
     }
 }
+
+private data class ShellTab(
+    val route: String,
+    val label: String,
+    val icon: ImageVector
+)
+
+private val ShellTabs = listOf(
+    ShellTab("tasbih", "Tasbih", Icons.Outlined.FavoriteBorder),
+    ShellTab("prayer", "Prayer", Icons.Outlined.Schedule),
+    ShellTab("qibla", "Qibla", Icons.Outlined.Explore),
+    ShellTab("dua", "Dua", Icons.AutoMirrored.Outlined.MenuBook)
+)
 
 @Composable
 fun AppNavigation(
@@ -137,39 +179,51 @@ fun AppNavigation(
         }
     }
 
+    val shellContentInsets = WindowInsets.safeDrawing.only(
+        WindowInsetsSides.Horizontal
+    ).union(WindowInsets.ime)
+
     Scaffold(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF1A120F)),
-        containerColor = Color(0xFF1A120F),
+            .background(FalahColors.Ivory),
+        containerColor = FalahColors.Ivory,
+        contentWindowInsets = shellContentInsets,
         bottomBar = {
             NavigationBar(
-                containerColor = Color(0xFF1A120F)
+                containerColor = FalahColors.ButterCream,
+                tonalElevation = 0.dp,
+                windowInsets = NavigationBarDefaults.windowInsets
             ) {
-                NavigationBarItem(
-                    selected = currentRoute == "tasbih",
-                    onClick = { navigateToTab("tasbih") },
-                    icon = { Text("📿") },
-                    label = { Text("Tasbih") }
+                val itemColors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = FalahColors.Forest,
+                    selectedTextColor = FalahColors.Forest,
+                    indicatorColor = FalahColors.NavIndicator,
+                    unselectedIconColor = FalahColors.WarmBrown,
+                    unselectedTextColor = FalahColors.WarmBrown
                 )
-                NavigationBarItem(
-                    selected = currentRoute == "prayer",
-                    onClick = { navigateToTab("prayer") },
-                    icon = { Text("🕌") },
-                    label = { Text("Prayer") }
-                )
-                NavigationBarItem(
-                    selected = currentRoute == "qibla",
-                    onClick = { navigateToTab("qibla") },
-                    icon = { Text("🧭") },
-                    label = { Text("Qibla") }
-                )
-                NavigationBarItem(
-                    selected = currentRoute == "dua",
-                    onClick = { navigateToTab("dua") },
-                    icon = { Text("📖") },
-                    label = { Text("Dua") }
-                )
+                ShellTabs.forEach { tab ->
+                    NavigationBarItem(
+                        selected = currentRoute == tab.route,
+                        onClick = { navigateToTab(tab.route) },
+                        icon = {
+                            Icon(
+                                imageVector = tab.icon,
+                                contentDescription = tab.label
+                            )
+                        },
+                        label = {
+                            Text(
+                                text = tab.label,
+                                style = MaterialTheme.typography.labelSmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
+                        colors = itemColors,
+                        alwaysShowLabel = true
+                    )
+                }
             }
         }
     ) { innerPadding ->
@@ -180,7 +234,9 @@ fun AppNavigation(
         NavHost(
             navController = navController,
             startDestination = "tasbih",
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier
+                .padding(innerPadding)
+                .consumeWindowInsets(innerPadding)
         ) {
 
             composable("tasbih") {

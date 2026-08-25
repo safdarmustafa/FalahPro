@@ -1,54 +1,40 @@
 package com.falahpro.app.ui.theme
 
-import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 
-private val AppBg = Color(0xFF1A120F)
-
-private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40,
-    background = AppBg,
-    surface = AppBg
+private val FalahLightColorScheme = lightColorScheme(
+    primary = FalahColors.OldMoneyGreen,
+    onPrimary = FalahColors.OnPrimary,
+    primaryContainer = FalahColors.SoftBrass,
+    onPrimaryContainer = FalahColors.Forest,
+    secondary = FalahColors.Forest,
+    onSecondary = FalahColors.Ivory,
+    secondaryContainer = FalahColors.WarmSand,
+    onSecondaryContainer = FalahColors.InkBrown,
+    tertiary = FalahColors.Brass,
+    onTertiary = FalahColors.InkBrown,
+    background = FalahColors.Ivory,
+    onBackground = FalahColors.InkBrown,
+    surface = FalahColors.Surface,
+    onSurface = FalahColors.InkBrown,
+    surfaceVariant = FalahColors.ButterCream,
+    onSurfaceVariant = FalahColors.WarmBrown,
+    outline = FalahColors.Outline,
+    error = FalahColors.Danger,
+    onError = FalahColors.Ivory
 )
 
-private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80,
-    background = AppBg,
-    surface = AppBg
-)
-
+/**
+ * Canonical Falah Pro theme. Light editorial identity — not system-dark maroon.
+ */
 @Composable
-fun SplashScreenJcTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
-    content: @Composable () -> Unit
-) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
-    }
-
+fun FalahProTheme(content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
+        colorScheme = FalahLightColorScheme,
+        typography = FalahTypography,
+        shapes = FalahMaterialShapes,
         content = content
     )
 }

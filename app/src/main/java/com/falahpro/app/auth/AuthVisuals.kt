@@ -1,16 +1,8 @@
 package com.falahpro.app.auth
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -45,57 +37,6 @@ internal object LoginColors {
     val DarkCard = Color(0xE6143228)
     val DarkText = Color(0xFFF5F0E6)
     val DarkMuted = Color(0xFFA8B8B0)
-}
-
-@Composable
-internal fun AuthHeroBadge(
-    floatOffset: Float,
-    glowPulse: Float,
-    darkTheme: Boolean = isSystemInDarkTheme()
-) {
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier
-            .size(220.dp)
-            .offset(y = floatOffset.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(190.dp)
-                .clip(CircleShape)
-                .background(
-                    Brush.radialGradient(
-                        colors = listOf(
-                            LoginColors.GoldSoft.copy(alpha = glowPulse * 0.9f),
-                            LoginColors.EmeraldSoft.copy(alpha = glowPulse * 0.35f),
-                            Color.Transparent
-                        )
-                    )
-                )
-        )
-        Box(
-            modifier = Modifier
-                .size(150.dp)
-                .clip(CircleShape)
-                .background(
-                    Brush.radialGradient(
-                        colors = listOf(
-                            if (darkTheme) {
-                                LoginColors.EmeraldMid.copy(alpha = 0.35f)
-                            } else {
-                                Color.White.copy(alpha = 0.55f)
-                            },
-                            Color.Transparent
-                        )
-                    )
-                )
-        )
-        PremiumIslamicHero(
-            modifier = Modifier.size(168.dp),
-            darkTheme = darkTheme,
-            glowPulse = glowPulse
-        )
-    }
 }
 
 @Composable

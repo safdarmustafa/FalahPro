@@ -1,8 +1,9 @@
 package com.falahpro.app.dua
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,32 +12,30 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.text.TextStyle
 import com.falahpro.app.dua.repository.DuaRepository
-
-private val DuaBgTop = Color(0xFF241612)
-private val DuaBgBottom = Color(0xFF140C09)
-private val DuaGold = Color(0xFFE2C07A)
-private val DuaCard = Color(0xFF2C1B16)
+import com.falahpro.app.ui.theme.FalahArabicTextStyle
+import com.falahpro.app.ui.theme.FalahColors
+import com.falahpro.app.ui.theme.FalahShapes
+import com.falahpro.app.ui.theme.FalahSpacing
 
 @Composable
 fun DuaDetailScreen(
@@ -44,6 +43,7 @@ fun DuaDetailScreen(
     duaId: Int,
     onBack: () -> Unit
 ) {
+    // ── ALL LOGIC UNCHANGED ──────────────────────────────────────────────────
     val context = LocalContext.current
     val repository = remember { DuaRepository() }
 
@@ -60,32 +60,53 @@ fun DuaDetailScreen(
                 word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
             }
     }
+    // ── END LOGIC ────────────────────────────────────────────────────────────
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(DuaBgTop, DuaBgBottom)))
-            .padding(16.dp)
+            .background(FalahColors.Ivory)
     ) {
-        Text(
-            text = "← Back",
-            color = DuaGold,
-            fontSize = 15.sp,
-            modifier = Modifier.clickable(onClick = onBack)
+        // ── Fixed header — sits above the scroll area ─────────────────────────
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(horizontal = FalahSpacing.screenRegular, vertical = FalahSpacing.sm)
+        ) {
+            // Back button
+            Text(
+                text = "← Back",
+                style = MaterialTheme.typography.labelLarge,
+                color = FalahColors.OldMoneyGreen,
+                modifier = Modifier
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() },
+                        onClick = onBack
+                    )
+                    .padding(vertical = FalahSpacing.xxs)
+            )
+
+            Spacer(Modifier.height(FalahSpacing.xs))
+
+            // Category breadcrumb
+            Text(
+                text = categoryName,
+                style = MaterialTheme.typography.labelMedium,
+                color = FalahColors.WarmBrown,
+                letterSpacing = 0.4.sp
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(FalahColors.WarmSand)
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(
-            text = categoryName,
-            color = DuaGold.copy(alpha = 0.75f),
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Medium,
-            letterSpacing = 0.6.sp
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
+        // ── Content ───────────────────────────────────────────────────────────
         if (dua == null) {
             Box(
                 modifier = Modifier
@@ -95,117 +116,148 @@ fun DuaDetailScreen(
             ) {
                 Text(
                     text = "No duas available.",
-                    color = Color.LightGray,
-                    fontSize = 16.sp
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = FalahColors.WarmBrown
                 )
             }
         } else {
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = FalahSpacing.screenRegular, vertical = FalahSpacing.md)
             ) {
+                // Dua title
                 Text(
                     text = dua.title,
-                    color = DuaGold,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 26.sp,
-                    lineHeight = 32.sp
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = FalahColors.Forest,
+                    lineHeight = 36.sp
                 )
 
+                Spacer(Modifier.height(FalahSpacing.md))
+
+                // Arabic — premium reading surface
                 DetailSectionCard {
                     DetailLabel("Arabic")
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(Modifier.height(FalahSpacing.md))
                     Text(
                         text = dua.arabic,
-                        color = Color(0xFFF5E6C8),
-                        fontSize = 26.sp,
-                        lineHeight = 42.sp,
-                        textAlign = TextAlign.Center,
-                        style = TextStyle(textDirection = TextDirection.Rtl),
-                        modifier = Modifier.fillMaxWidth()
+                        style = FalahArabicTextStyle.copy(
+                            fontSize = 24.sp,
+                            lineHeight = 46.sp,
+                            textAlign = TextAlign.Center,
+                            color = FalahColors.InkBrown
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = FalahSpacing.xs)
                     )
                 }
 
+                Spacer(Modifier.height(FalahSpacing.md))
+
+                // Transliteration
                 DetailSectionCard {
                     DetailLabel("Transliteration")
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(Modifier.height(FalahSpacing.sm))
                     Text(
                         text = dua.transliteration,
-                        color = Color.White.copy(alpha = 0.9f),
-                        fontSize = 16.sp,
-                        lineHeight = 24.sp,
-                        fontWeight = FontWeight.Medium
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            lineHeight = 26.sp,
+                            fontWeight = FontWeight.Normal
+                        ),
+                        color = FalahColors.InkBrown
                     )
                 }
 
+                Spacer(Modifier.height(FalahSpacing.md))
+
+                // Translation
                 DetailSectionCard {
                     DetailLabel("Translation")
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(Modifier.height(FalahSpacing.sm))
                     Text(
                         text = dua.translation,
-                        color = Color.LightGray,
-                        fontSize = 15.sp,
-                        lineHeight = 23.sp
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            lineHeight = 26.sp
+                        ),
+                        color = FalahColors.WarmBrown
                     )
                 }
 
+                Spacer(Modifier.height(FalahSpacing.md))
+
+                // When to recite
                 DetailSectionCard {
                     DetailLabel("When To Recite")
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(Modifier.height(FalahSpacing.sm))
                     Text(
                         text = dua.whenToRecite,
-                        color = Color.White.copy(alpha = 0.88f),
-                        fontSize = 15.sp,
-                        lineHeight = 22.sp
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            lineHeight = 26.sp
+                        ),
+                        color = FalahColors.InkBrown
                     )
                 }
 
+                Spacer(Modifier.height(FalahSpacing.md))
+
+                // Reference — fixed weighted layout
                 DetailSectionCard {
                     DetailLabel("Reference")
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(Modifier.height(FalahSpacing.md))
 
                     ReferenceRow(label = "Book", value = dua.reference.book)
-                    Spacer(modifier = Modifier.height(10.dp))
-                    HorizontalDivider(color = DuaGold.copy(alpha = 0.15f))
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(Modifier.height(FalahSpacing.sm))
+                    HorizontalDivider(color = FalahColors.WarmSand)
+                    Spacer(Modifier.height(FalahSpacing.sm))
                     ReferenceRow(label = "Hadith", value = dua.reference.hadith)
-                    Spacer(modifier = Modifier.height(10.dp))
-                    HorizontalDivider(color = DuaGold.copy(alpha = 0.15f))
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(Modifier.height(FalahSpacing.sm))
+                    HorizontalDivider(color = FalahColors.WarmSand)
+                    Spacer(Modifier.height(FalahSpacing.sm))
                     ReferenceRow(label = "Number", value = dua.reference.number)
                 }
 
+                Spacer(Modifier.height(FalahSpacing.md))
+
+                // Repeat count
                 DetailSectionCard {
                     DetailLabel("Repeat Count")
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(Modifier.height(FalahSpacing.sm))
                     Text(
                         text = if (dua.repeat == 1) "1 time" else "${dua.repeat} times",
-                        color = DuaGold,
-                        fontSize = 18.sp,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = FalahColors.Forest,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(Modifier.height(FalahSpacing.xl))
             }
         }
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared sub-composables
+// ─────────────────────────────────────────────────────────────────────────────
+
 @Composable
 private fun DetailSectionCard(
     content: @Composable () -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = DuaCard)
+    // Column, not Box — Box stacks children at the same position (collision bug)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(FalahShapes.Card)
+            .background(FalahColors.ButterCream)
+            .border(1.dp, FalahColors.WarmSand, FalahShapes.Card)
+            .padding(FalahSpacing.md)
     ) {
-        Column(modifier = Modifier.padding(18.dp)) {
-            content()
-        }
+        content()
     }
 }
 
@@ -213,13 +265,15 @@ private fun DetailSectionCard(
 private fun DetailLabel(text: String) {
     Text(
         text = text.uppercase(),
-        color = DuaGold.copy(alpha = 0.7f),
-        fontSize = 11.sp,
-        fontWeight = FontWeight.SemiBold,
-        letterSpacing = 1.2.sp
+        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.2.sp),
+        color = FalahColors.WarmBrown.copy(alpha = 0.70f)
     )
 }
 
+/**
+ * Fixed layout: label gets 32% of the row width, value gets 68%.
+ * Long book/hadith names wrap rather than overflowing.
+ */
 @Composable
 private fun ReferenceRow(
     label: String,
@@ -227,20 +281,23 @@ private fun ReferenceRow(
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
+        verticalAlignment = Alignment.Top
     ) {
         Text(
             text = label,
-            color = Color.LightGray.copy(alpha = 0.7f),
-            fontSize = 13.sp
+            style = MaterialTheme.typography.bodyMedium,
+            color = FalahColors.WarmBrown.copy(alpha = 0.65f),
+            modifier = Modifier.weight(0.32f)
         )
         Text(
             text = value.ifBlank { "—" },
-            color = Color.White.copy(alpha = 0.92f),
-            fontSize = 14.sp,
+            style = MaterialTheme.typography.bodyMedium,
+            color = FalahColors.InkBrown,
             fontWeight = FontWeight.Medium,
             textAlign = TextAlign.End,
-            modifier = Modifier.padding(start = 16.dp)
+            modifier = Modifier
+                .weight(0.68f)
+                .padding(start = FalahSpacing.sm)
         )
     }
 }

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Splash: cream + branded icon. postSplashScreenTheme switches to dark app chrome. -->
+    <!-- Splash: cream + branded icon. postSplashScreenTheme matches ivory app chrome. -->
     <style name="Theme.FalahPro.Splash" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/splash_background</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_branded</item>
@@ -14,12 +14,13 @@
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
     </style>
 
-    <!-- After splash: dark window so handoff to Tasbih never flashes cream/white -->
+    <!-- After splash: ivory window so handoff matches splash and the editorial shell -->
     <style name="Theme.FalahPro" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/app_background</item>
         <item name="android:statusBarColor">@color/app_background</item>
         <item name="android:navigationBarColor">@color/app_background</item>
-        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="27">true</item>
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
     </style>
 

@@ -1,7 +1,6 @@
 package com.falahpro.app.prayer
 
 import android.Manifest
-import android.app.Application
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -11,9 +10,11 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -22,10 +23,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -40,30 +43,36 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.coerceIn
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.falahpro.app.FalahPro
 import com.falahpro.app.core.notification.PrayerNotificationManager
 import com.falahpro.app.core.scheduler.PrayerEngine
 import com.falahpro.app.core.util.PrayerConstants
 import com.falahpro.app.data.AzanMode
 import com.falahpro.app.data.DataStoreManager
-import com.falahpro.app.FalahPro
+import com.falahpro.app.ui.theme.FalahColors
+import com.falahpro.app.ui.theme.FalahShapes
+import com.falahpro.app.ui.theme.FalahSpacing
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
-/**
- * Activity-scoped visual effects that keep running while the user is on other tabs,
- * so background and pulse animations never restart from their initial values on return.
- */
+// ─────────────────────────────────────────────────────────────────────────────
+// Visual effects state — UNCHANGED (activity-scoped, signature must match FalahPro.kt)
+// ─────────────────────────────────────────────────────────────────────────────
+
 @Stable
 class PrayerVisualEffectsState {
     var bgOffset by mutableFloatStateOf(0f)
@@ -71,13 +80,8 @@ class PrayerVisualEffectsState {
     var pulseScale by mutableFloatStateOf(0.7f)
         private set
 
-    internal fun setBgOffset(value: Float) {
-        bgOffset = value
-    }
-
-    internal fun setPulseScale(value: Float) {
-        pulseScale = value
-    }
+    internal fun setBgOffset(value: Float) { bgOffset = value }
+    internal fun setPulseScale(value: Float) { pulseScale = value }
 }
 
 @Composable
@@ -112,25 +116,9 @@ fun rememberPrayerVisualEffects(): PrayerVisualEffectsState {
     return state
 }
 
-@Composable
-fun PremiumBackground(
-    bgOffset: Float,
-    content: @Composable () -> Unit
-) {
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(
-                Brush.radialGradient(
-                    colors = listOf(Color(0xFF2B1C17), Color(0xFF140C09)),
-                    center = Offset(bgOffset, bgOffset),
-                    radius = 1200f
-                )
-            )
-    ) {
-        content()
-    }
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// Screen
+// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Passive observer of [PrayerViewModel.uiState].
@@ -141,6 +129,7 @@ fun PrayerTrackerScreen(
     viewModel: PrayerViewModel,
     visualEffects: PrayerVisualEffectsState
 ) {
+    // ── ALL EXISTING LOGIC UNCHANGED ──────────────────────────────────────────
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val uiState by viewModel.uiState.collectAsState()
@@ -163,7 +152,7 @@ fun PrayerTrackerScreen(
     }
 
     if (!hasLocationPermission && !permissionLaunched) {
-        androidx.compose.runtime.LaunchedEffect(Unit) {
+        LaunchedEffect(Unit) {
             viewModel.markPermissionRequestLaunched()
             permissionLauncher.launch(
                 arrayOf(
@@ -174,7 +163,7 @@ fun PrayerTrackerScreen(
         }
     }
 
-    // Refresh prayer times/city from live GPS whenever we have permission (initial or just granted).
+    // Refresh prayer times/city from live GPS whenever we have permission.
     LaunchedEffect(hasLocationPermission) {
         if (hasLocationPermission) {
             PrayerEngine.syncLocationIfPermitted(context)
@@ -201,211 +190,429 @@ fun PrayerTrackerScreen(
 
     val scrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
 
-    PremiumBackground(bgOffset = visualEffects.bgOffset) {
-        Box(
-            Modifier
+    val pulse = visualEffects.pulseScale
+    // ── END LOGIC ─────────────────────────────────────────────────────────────
+
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(FalahColors.Ivory)
+    ) {
+        val isCompact = maxWidth < 360.dp
+        val hPad = if (isCompact) FalahSpacing.screenCompact else FalahSpacing.screenRegular
+
+        // Responsive hero circle: 52% of width, clamped 160–220dp
+        val progressDiameter = (maxWidth * 0.52f).coerceIn(160.dp, 220.dp)
+        val innerDiameter = progressDiameter * 0.72f
+
+        Column(
+            modifier = Modifier
                 .fillMaxSize()
-                .padding(24.dp)
+                .verticalScroll(scrollState),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Column(
-                Modifier
-                    .fillMaxSize()
-                    .verticalScroll(scrollState),
-                verticalArrangement = Arrangement.SpaceBetween,
-                horizontalAlignment = Alignment.CenterHorizontally
+            PrayerScreenHeader(hPad = hPad)
+
+            Spacer(Modifier.height(FalahSpacing.sm))
+
+            // Reliability banner — renders nothing when all permissions are OK
+            PrayerReliabilityBanner()
+
+            Spacer(Modifier.height(FalahSpacing.lg))
+
+            PrayerHeroSection(
+                progressDiameter = progressDiameter,
+                innerDiameter = innerDiameter,
+                animatedProgress = animatedProgress,
+                pulse = pulse,
+                nextPrayerName = uiState.nextPrayerName,
+                displayHours = displayHours,
+                displayMinutes = displayMinutes,
+                displaySecs = displaySecs,
+                currentTime = uiState.currentTime,
+                cityName = uiState.cityName,
+                sunriseTime = uiState.sunriseTime,
+                hasLocationPermission = hasLocationPermission,
+                formatter = formatter,
+                hPad = hPad
+            )
+
+            Spacer(Modifier.height(FalahSpacing.xl))
+
+            // Azan mode — all scheduling calls unchanged
+            AzanModeCard(
+                azanMode = azanMode,
+                onToggle = {
+                    scope.launch {
+                        val nextMode = when (azanMode) {
+                            AzanMode.SILENT -> AzanMode.FULL_SOUND
+                            AzanMode.FULL_SOUND -> AzanMode.NOTIFICATION_ONLY
+                            AzanMode.NOTIFICATION_ONLY -> AzanMode.SILENT
+                        }
+                        DataStoreManager.saveAzanMode(context, nextMode)
+                        PrayerNotificationManager.getInstance(context)
+                            .updateChannelsForMode(nextMode)
+                        PrayerEngine.rescheduleAll(context, reason = "azan_mode_changed")
+                    }
+                },
+                modifier = Modifier.padding(horizontal = hPad)
+            )
+
+            Spacer(Modifier.height(FalahSpacing.md))
+
+            // Prayer schedule — toggle/state calls unchanged
+            PrayerScheduleCard(
+                prayers = prayers,
+                uiState = uiState,
+                formatter = formatter,
+                hPad = hPad,
+                onPrayerClick = { prayer ->
+                    val newValue = !(uiState.prayerStates[prayer] ?: false)
+                    viewModel.setPrayerCompleted(prayer, newValue)
+                    scope.launch {
+                        DataStoreManager.savePrayerState(context, prayer, newValue)
+                    }
+                }
+            )
+
+            Spacer(Modifier.height(FalahSpacing.xl))
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Header
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun PrayerScreenHeader(hPad: Dp) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .padding(horizontal = hPad, vertical = FalahSpacing.sm)
+    ) {
+        Text(
+            text = "Prayer Times",
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+            color = FalahColors.Forest
+        )
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(1.dp)
+            .background(FalahColors.WarmSand)
+    )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Hero
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun PrayerHeroSection(
+    progressDiameter: Dp,
+    innerDiameter: Dp,
+    animatedProgress: Float,
+    pulse: Float,
+    nextPrayerName: String,
+    displayHours: Int,
+    displayMinutes: Int,
+    displaySecs: Int,
+    currentTime: LocalTime,
+    cityName: String,
+    sunriseTime: LocalTime?,
+    hasLocationPermission: Boolean,
+    formatter: DateTimeFormatter,
+    hPad: Dp
+) {
+    // Pulse ring stays inside the outer progress circle
+    val pulseDiameter = (innerDiameter * pulse.coerceIn(0.7f, 1.1f))
+        .coerceAtMost(progressDiameter - 8.dp)
+
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+
+        Box(
+            modifier = Modifier.size(progressDiameter),
+            contentAlignment = Alignment.Center
+        ) {
+            // Subtle breathing ring — uses pulseScale from activity-scoped effects
+            Box(
+                modifier = Modifier
+                    .size(pulseDiameter)
+                    .background(FalahColors.Forest.copy(alpha = 0.07f), CircleShape)
+            )
+
+            // Progress arc — existing progress calculation unchanged
+            CircularProgressIndicator(
+                progress = { animatedProgress },
+                modifier = Modifier.size(progressDiameter),
+                strokeWidth = 5.dp,
+                color = FalahColors.Brass,
+                trackColor = FalahColors.WarmSand.copy(alpha = 0.45f)
+            )
+
+            // Inner circle with next prayer + countdown
+            Box(
+                modifier = Modifier
+                    .size(innerDiameter)
+                    .shadow(4.dp, CircleShape, ambientColor = FalahColors.Forest.copy(0.14f))
+                    .clip(CircleShape)
+                    .background(FalahColors.Forest),
+                contentAlignment = Alignment.Center
             ) {
-                PrayerReliabilityBanner()
-                Spacer(Modifier.height(12.dp))
-
-                val pulse = visualEffects.pulseScale
-
-                Box(contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(
-                        progress = { animatedProgress },
-                        strokeWidth = 6.dp,
-                        color = Color(0xFFE2C07A),
-                        trackColor = Color.White.copy(0.08f),
-                        modifier = Modifier.size(190.dp)
-                    )
-                    Box(
-                        modifier = Modifier
-                            .size((160 * pulse).dp)
-                            .background(
-                                Color(0xFFE2C07A).copy(alpha = 0.05f),
-                                CircleShape
-                            )
-                    )
-                    Box(
-                        modifier = Modifier
-                            .size(140.dp)
-                            .shadow(12.dp, CircleShape)
-                            .background(
-                                Brush.radialGradient(
-                                    listOf(Color(0xFF3E2A24), Color(0xFF1A120F))
-                                ),
-                                CircleShape
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            uiState.currentTime.format(formatter),
-                            fontSize = 20.sp,
-                            color = Color.White,
-                            fontWeight = FontWeight.Light
-                        )
-                    }
-                }
-
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(horizontal = FalahSpacing.sm)
+                ) {
                     Text(
-                        text = uiState.cityName,
-                        fontSize = 14.sp,
-                        color = Color.White.copy(0.7f)
+                        text = nextPrayerName,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = FalahColors.SoftBrass,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
-
-                    if (!hasLocationPermission) {
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            text = "Allow location for more accurate times",
-                            fontSize = 11.sp,
-                            color = Color.White.copy(0.45f)
-                        )
-                    }
-
-                    uiState.sunriseTime?.let { sunrise ->
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            text = "Sunrise ${sunrise.format(formatter)}",
-                            fontSize = 11.sp,
-                            color = Color.White.copy(0.45f)
-                        )
-                    }
-
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(FalahSpacing.xxs))
                     Text(
-                        text = "Next Prayer",
-                        fontSize = 12.sp,
-                        color = Color.White.copy(0.5f)
-                    )
-                    Spacer(Modifier.height(6.dp))
-
-                    Text(
-                        text = when (azanMode) {
-                            AzanMode.FULL_SOUND -> "🔊 Full Azan"
-                            AzanMode.NOTIFICATION_ONLY -> "🔔 Notification Only"
-                            AzanMode.SILENT -> "🔕 Silent"
-                        },
-                        fontSize = 12.sp,
-                        color = Color(0xFFE2C07A),
-                        modifier = Modifier.clickable {
-                            scope.launch {
-                                val nextMode = when (azanMode) {
-                                    AzanMode.SILENT -> AzanMode.FULL_SOUND
-                                    AzanMode.FULL_SOUND -> AzanMode.NOTIFICATION_ONLY
-                                    AzanMode.NOTIFICATION_ONLY -> AzanMode.SILENT
-                                }
-                                DataStoreManager.saveAzanMode(context, nextMode)
-                                PrayerNotificationManager.getInstance(context)
-                                    .updateChannelsForMode(nextMode)
-                                PrayerEngine.rescheduleAll(context, reason = "azan_mode_changed")
-                            }
-                        }
-                    )
-
-                    Spacer(Modifier.height(4.dp))
-
-                    Text(
-                        uiState.nextPrayerName.uppercase(),
-                        fontSize = 26.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFE2C07A)
-                    )
-
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        text = "in %02dh %02dm %02ds".format(
-                            displayHours,
-                            displayMinutes,
-                            displaySecs
-                        ),
-                        fontSize = 14.sp,
-                        color = Color.White.copy(0.7f)
+                        text = "%02d:%02d:%02d".format(displayHours, displayMinutes, displaySecs),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = FalahColors.Ivory.copy(alpha = 0.85f),
+                        maxLines = 1
                     )
                 }
+            }
+        }
 
-                Column {
-                    prayers.chunked(2).forEach { rowPrayers ->
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            rowPrayers.forEach { prayer ->
-                                val isCompleted = uiState.prayerStates[prayer] == true
-                                val time = uiState.prayerTimes[prayer]
+        Spacer(Modifier.height(FalahSpacing.md))
 
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .shadow(6.dp, RoundedCornerShape(20.dp))
-                                        .background(
-                                            Brush.linearGradient(
-                                                colors = listOf(
-                                                    Color(0xFF2A1C17),
-                                                    Color(0xFF2A1C17),
-                                                    Color.White.copy(alpha = 0.05f)
-                                                )
-                                            ),
-                                            RoundedCornerShape(20.dp)
-                                        )
-                                        .clickable {
-                                            val newValue = !(uiState.prayerStates[prayer] ?: false)
-                                            viewModel.setPrayerCompleted(prayer, newValue)
-                                            scope.launch {
-                                                DataStoreManager.savePrayerState(
-                                                    context,
-                                                    prayer,
-                                                    newValue
-                                                )
-                                            }
-                                        }
-                                        .padding(20.dp)
-                                ) {
-                                    Column {
-                                        Text(
-                                            prayer,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = Color.White
-                                        )
-                                        Spacer(Modifier.height(4.dp))
-                                        Text(
-                                            time?.format(formatter) ?: "--:--",
-                                            fontSize = 12.sp,
-                                            color = Color.White.copy(0.6f)
-                                        )
-                                        Spacer(Modifier.height(14.dp))
-                                        Box(
-                                            modifier = Modifier
-                                                .size(14.dp)
-                                                .background(
-                                                    if (isCompleted) Color(0xFFE2C07A)
-                                                    else Color.White.copy(0.25f),
-                                                    CircleShape
-                                                )
-                                        )
-                                    }
-                                }
-                            }
-                            if (rowPrayers.size == 1) {
-                                Spacer(modifier = Modifier.weight(1f))
-                            }
-                        }
-                        Spacer(Modifier.height(18.dp))
-                    }
-                }
+        // Current time
+        Text(
+            text = currentTime.format(formatter),
+            style = MaterialTheme.typography.titleMedium,
+            color = FalahColors.InkBrown,
+            fontWeight = FontWeight.Light
+        )
+
+        Spacer(Modifier.height(FalahSpacing.xxs))
+
+        // City name
+        Text(
+            text = cityName,
+            style = MaterialTheme.typography.bodyMedium,
+            color = FalahColors.WarmBrown,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        if (!hasLocationPermission) {
+            Spacer(Modifier.height(FalahSpacing.xxs))
+            Text(
+                text = "Allow location for accurate prayer times",
+                style = MaterialTheme.typography.labelSmall,
+                color = FalahColors.WarmBrown.copy(alpha = 0.65f),
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = hPad)
+            )
+        }
+
+        sunriseTime?.let { sunrise ->
+            Spacer(Modifier.height(FalahSpacing.xxs))
+            Text(
+                text = "Sunrise  ${sunrise.format(formatter)}",
+                style = MaterialTheme.typography.labelSmall,
+                color = FalahColors.WarmBrown.copy(alpha = 0.60f)
+            )
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Azan mode card
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun AzanModeCard(
+    azanMode: AzanMode,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val label = when (azanMode) {
+        AzanMode.FULL_SOUND -> "Full Azan"
+        AzanMode.NOTIFICATION_ONLY -> "Notifications Only"
+        AzanMode.SILENT -> "Silent"
+    }
+    val description = when (azanMode) {
+        AzanMode.FULL_SOUND -> "Full Azan audio at every prayer"
+        AzanMode.NOTIFICATION_ONLY -> "Alert without Azan audio"
+        AzanMode.SILENT -> "No sound or notification"
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(FalahShapes.Card)
+            .background(FalahColors.ButterCream)
+            .border(1.dp, FalahColors.WarmSand, FalahShapes.Card)
+            .clickable(
+                indication = null,
+                interactionSource = remember { MutableInteractionSource() },
+                onClick = onToggle
+            )
+            .padding(FalahSpacing.md)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Prayer Alert",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = FalahColors.WarmBrown
+                )
+                Spacer(Modifier.height(FalahSpacing.xxs))
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = FalahColors.Forest,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = FalahColors.WarmBrown
+                )
+            }
+            Spacer(Modifier.width(FalahSpacing.sm))
+            Box(
+                modifier = Modifier
+                    .background(FalahColors.SoftBrass.copy(alpha = 0.55f), FalahShapes.Pill)
+                    .padding(horizontal = FalahSpacing.sm, vertical = FalahSpacing.xxs)
+            ) {
+                Text(
+                    text = "Tap to change",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = FalahColors.WarmBrown
+                )
             }
         }
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Prayer schedule
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun PrayerScheduleCard(
+    prayers: List<String>,
+    uiState: PrayerUiState,
+    formatter: DateTimeFormatter,
+    hPad: Dp,
+    onPrayerClick: (String) -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = hPad)
+            .clip(FalahShapes.Card)
+            .background(FalahColors.ButterCream)
+            .border(1.dp, FalahColors.WarmSand, FalahShapes.Card)
+    ) {
+        Column {
+            prayers.forEachIndexed { index, prayer ->
+                if (index > 0) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(FalahColors.WarmSand.copy(alpha = 0.6f))
+                    )
+                }
+                PrayerRow(
+                    prayer = prayer,
+                    time = uiState.prayerTimes[prayer]?.format(formatter) ?: "--:--",
+                    isNext = prayer == uiState.nextPrayerName,
+                    isCompleted = uiState.prayerStates[prayer] == true,
+                    onClick = { onPrayerClick(prayer) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PrayerRow(
+    prayer: String,
+    time: String,
+    isNext: Boolean,
+    isCompleted: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(if (isNext) FalahColors.Forest.copy(alpha = 0.06f) else Color.Transparent)
+            .clickable(
+                indication = null,
+                interactionSource = remember { MutableInteractionSource() },
+                onClick = onClick
+            )
+            .padding(horizontal = FalahSpacing.md, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = prayer,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = if (isNext) FontWeight.SemiBold else FontWeight.Normal,
+                color = if (isNext) FalahColors.Forest else FalahColors.InkBrown,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = time,
+                style = MaterialTheme.typography.labelMedium,
+                color = if (isNext) FalahColors.OldMoneyGreen else FalahColors.WarmBrown
+            )
+        }
+
+        if (isNext) {
+            Box(
+                modifier = Modifier
+                    .background(FalahColors.SoftBrass.copy(alpha = 0.6f), FalahShapes.Pill)
+                    .padding(horizontal = FalahSpacing.sm, vertical = FalahSpacing.xxs)
+            ) {
+                Text(
+                    text = "Next",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = FalahColors.WarmBrown
+                )
+            }
+            Spacer(Modifier.width(FalahSpacing.sm))
+        }
+
+        // Completion dot — toggles via existing setPrayerCompleted / DataStore call
+        Box(
+            modifier = Modifier
+                .size(20.dp)
+                .background(
+                    if (isCompleted) FalahColors.Forest else Color.Transparent,
+                    CircleShape
+                )
+                .then(
+                    if (!isCompleted)
+                        Modifier.border(1.5.dp, FalahColors.WarmSand, CircleShape)
+                    else
+                        Modifier
+                )
+        )
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ViewModel helper — UNCHANGED
+// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 fun rememberPrayerViewModel(): PrayerViewModel {

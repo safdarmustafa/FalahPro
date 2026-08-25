@@ -25,6 +25,7 @@ class DateChangedReceiver : BroadcastReceiver() {
             try {
                 PrayerLog.dateChanged()
                 DataStoreManager.checkAndResetIfNewDay(context)
+                PrayerRepository.getInstance(context).ensureFiredPrayersDateCurrent()
                 PrayerRepository.getInstance(context).invalidateCache()
                 PrayerEngine.rescheduleAllSync(context, reason = "date_changed")
             } finally {

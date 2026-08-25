@@ -39,13 +39,13 @@ class AzanAudioPlayer(
 
         if (!requestAudioFocus()) {
             PrayerLog.warn("AUDIO_FOCUS_DENIED")
-            mainHandler.post(onComplete)
-            return
+            // Android 15 / HyperOS HardeningEnforcer can deny focus for a
+            // background FGS (procState=4). Azan must still play on STREAM_ALARM.
         }
 
         acquireWakeLock()
         try {
-            val player = MediaPlayer.create(context, R.raw.azan)
+            val player = createAzanMediaPlayer()
             if (player == null) {
                 PrayerLog.error("MEDIAPLAYER_CREATE_NULL")
                 releaseAll()
@@ -54,12 +54,6 @@ class AzanAudioPlayer(
             }
             mediaPlayer = player
             PrayerRuntimeState.mediaPlayerActive = true
-            player.setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_MEDIA)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                    .build()
-            )
             player.setOnCompletionListener {
                 PrayerLog.audioCompleted()
                 scope.launch { PrayerRepository.getInstance(context).recordAzanEvent() }
@@ -152,14 +146,10 @@ class AzanAudioPlayer(
                 mainHandler.post(onComplete)
             }
         }
+        PrayerLog.event("AUDIO_FOCUS_REQUEST", "usage=USAGE_ALARM gain=AUDIOFOCUS_GAIN_TRANSIENT")
         val granted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
-                .setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_MEDIA)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                        .build()
-                )
+                .setAudioAttributes(azanAudioAttributes())
                 .setOnAudioFocusChangeListener(focusListener)
                 .build()
             focusRequest = request
@@ -168,11 +158,14 @@ class AzanAudioPlayer(
             @Suppress("DEPRECATION")
             manager.requestAudioFocus(
                 focusListener,
-                AudioManager.STREAM_MUSIC,
+                AudioManager.STREAM_ALARM,
                 AudioManager.AUDIOFOCUS_GAIN_TRANSIENT
             ) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
         }
         PrayerRuntimeState.audioFocusHeld = granted
+        if (granted) {
+            PrayerLog.event("AUDIO_FOCUS_GRANTED")
+        }
         return granted
     }
 
@@ -185,5 +178,27 @@ class AzanAudioPlayer(
             manager.abandonAudioFocus(null)
         }
         focusRequest = null
+    }
+
+    private fun azanAudioAttributes(): AudioAttributes =
+        AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_ALARM)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build()
+
+    private fun createAzanMediaPlayer(): MediaPlayer? {
+        val afd = context.resources.openRawResourceFd(R.raw.azan) ?: return null
+        val player = MediaPlayer()
+        return try {
+            player.setAudioAttributes(azanAudioAttributes())
+            player.setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
+            player.prepare()
+            player
+        } catch (_: Exception) {
+            player.release()
+            null
+        } finally {
+            afd.close()
+        }
     }
 }

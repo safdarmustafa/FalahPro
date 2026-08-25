@@ -26,6 +26,9 @@ object PrayerConstants {
     /** Trigger drift beyond this re-schedules an existing PendingIntent. */
     const val ALARM_TRIGGER_TOLERANCE_MS = 60_000L
 
+    /** Alarm delivered more than this many ms before [triggerAtMillis] is deferred, not played. */
+    const val EARLY_ALARM_TOLERANCE_MS = 30_000L
+
     fun requestCodeFor(prayerName: String, dayOffset: Int): Int {
         val prayerIndex = PRAYER_NAMES.indexOf(prayerName)
         require(prayerIndex >= 0) { "Unknown prayer: $prayerName" }

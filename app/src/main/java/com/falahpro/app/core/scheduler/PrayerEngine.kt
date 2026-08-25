@@ -35,6 +35,36 @@ object PrayerEngine {
 
     private val engineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val rescheduleMutex = Mutex()
+    private val fireHandlerMutex = Mutex()
+
+    /**
+     * Process-local accept set for today's prayers. Written as soon as a delivery is
+     * accepted so a concurrent reschedule cannot re-arm the same slot, and so a second
+     * receiver cannot start Azan. Persisted fired flags are written only after notify
+     * and optional Azan start have been attempted.
+     */
+    private val acceptedLock = Any()
+    private var acceptedDate: String = ""
+    private val acceptedPrayers = mutableSetOf<String>()
+
+    private fun isAcceptedInMemory(prayerName: String): Boolean {
+        val today = LocalDate.now().toString()
+        synchronized(acceptedLock) {
+            if (acceptedDate != today) return false
+            return prayerName in acceptedPrayers
+        }
+    }
+
+    private fun markAcceptedInMemory(prayerName: String) {
+        val today = LocalDate.now().toString()
+        synchronized(acceptedLock) {
+            if (acceptedDate != today) {
+                acceptedPrayers.clear()
+                acceptedDate = today
+            }
+            acceptedPrayers.add(prayerName)
+        }
+    }
 
     fun bootstrap(context: Context) {
         engineScope.launch {
@@ -50,6 +80,7 @@ object PrayerEngine {
             val appContext = context.applicationContext
             PrayerLog.engineBoot()
             DataStoreManager.checkAndResetIfNewDay(appContext)
+            PrayerRepository.getInstance(appContext).ensureFiredPrayersDateCurrent()
             PrayerRepository.getInstance(appContext).ensureTodayTimesCalculated()
             syncAlarmsInternal(appContext, reason = "application_onCreate")
         }
@@ -190,6 +221,11 @@ object PrayerEngine {
                     .toInstant()
                     .toEpochMilli()
                 if (triggerAtMillis > now) {
+                    if (dayOffset == 0 &&
+                        (repository.isPrayerFiredToday(prayerName) || isAcceptedInMemory(prayerName))
+                    ) {
+                        return@forEach
+                    }
                     result.add(
                         ExpectedAlarm(
                             prayerName = prayerName,
@@ -268,34 +304,65 @@ object PrayerEngine {
         triggerAtMillis: Long,
         dayOffset: Int
     ) {
-        PrayerRuntimeState.lastReceiverPrayer = prayerName
-        PrayerRuntimeState.lastReceiverAtMillis = System.currentTimeMillis()
-        PrayerRepository.getInstance(context).recordReceiverEvent(prayerName)
-
-        if (triggerAtMillis > 0L) {
-            val drift = abs(System.currentTimeMillis() - triggerAtMillis)
-            if (drift > PrayerConstants.STALE_ALARM_SKIP_MS) {
-                PrayerLog.warn("STALE_ALARM_SKIPPED", "prayer=$prayerName driftMs=$drift")
-                rescheduleAllSync(context, reason = "stale_alarm_$prayerName")
-                return
-            }
-            if (drift > PrayerConstants.STALE_ALARM_WARN_MS) {
-                PrayerLog.warn("ALARM_LATE", "prayer=$prayerName driftMs=$drift")
-            }
-        }
-
         val appContext = context.applicationContext
-        val azanMode = DataStoreManager.getAzanMode(appContext).first()
-        val notificationManager = com.falahpro.app.core.notification.PrayerNotificationManager
-            .getInstance(appContext)
+        var rescheduleReason: String? = null
 
-        notificationManager.showPrayerNotification(prayerName, azanMode)
-        PrayerRepository.getInstance(appContext).recordNotificationEvent(prayerName)
+        fireHandlerMutex.withLock {
+            val repository = PrayerRepository.getInstance(appContext)
 
-        if (azanMode == AzanMode.FULL_SOUND) {
-            com.falahpro.app.core.audio.AzanPlaybackService.start(appContext, prayerName)
+            PrayerRuntimeState.lastReceiverPrayer = prayerName
+            PrayerRuntimeState.lastReceiverAtMillis = System.currentTimeMillis()
+            repository.recordReceiverEvent(prayerName)
+
+            if (triggerAtMillis > 0L) {
+                val now = System.currentTimeMillis()
+                val drift = abs(now - triggerAtMillis)
+                if (drift > PrayerConstants.STALE_ALARM_SKIP_MS) {
+                    PrayerLog.warn("STALE_ALARM_SKIPPED", "prayer=$prayerName driftMs=$drift")
+                    rescheduleReason = "stale_alarm_$prayerName"
+                    return@withLock
+                }
+                if (drift > PrayerConstants.STALE_ALARM_WARN_MS) {
+                    PrayerLog.warn("ALARM_LATE", "prayer=$prayerName driftMs=$drift")
+                }
+
+                val earlyByMs = triggerAtMillis - now
+                if (earlyByMs > PrayerConstants.EARLY_ALARM_TOLERANCE_MS) {
+                    PrayerLog.earlyAlarmDetected(prayerName, earlyByMs)
+                    PrayerLog.event(
+                        "EARLY_ALARM_ACCEPTED",
+                        "prayer=$prayerName dayOffset=$dayOffset"
+                    )
+                }
+            }
+
+            if (repository.isPrayerFiredToday(prayerName) || isAcceptedInMemory(prayerName)) {
+                PrayerLog.duplicateAlarmIgnored(prayerName)
+                return@withLock
+            }
+
+            markAcceptedInMemory(prayerName)
+            PrayerLog.prayerAlarmAccepted(prayerName)
+
+            try {
+                val azanMode = DataStoreManager.getAzanMode(appContext).first()
+                val notificationManager = com.falahpro.app.core.notification.PrayerNotificationManager
+                    .getInstance(appContext)
+
+                notificationManager.showPrayerNotification(prayerName, azanMode)
+                repository.recordNotificationEvent(prayerName)
+
+                if (azanMode == AzanMode.FULL_SOUND) {
+                    com.falahpro.app.core.audio.AzanPlaybackService.start(appContext, prayerName)
+                }
+            } finally {
+                repository.tryMarkPrayerFiredToday(prayerName)
+                rescheduleReason = "alarm_fired_$prayerName"
+            }
         }
 
-        rescheduleAllSync(appContext, reason = "alarm_fired_$prayerName")
+        rescheduleReason?.let { reason ->
+            rescheduleAllSync(appContext, reason)
+        }
     }
 }

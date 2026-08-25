@@ -16,12 +16,13 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -35,7 +36,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -61,15 +62,17 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.falahpro.app.R
 import com.falahpro.app.core.prayer.PrayerRepository
 import com.falahpro.app.location.getUserLocation
+import com.falahpro.app.ui.theme.FalahColors
+import com.falahpro.app.ui.theme.FalahShapes
+import com.falahpro.app.ui.theme.FalahSpacing
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.math.abs
@@ -78,22 +81,11 @@ import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
-private val BgTop = Color(0xFF2A1C18)
-private val BgBottom = Color(0xFF140C09)
-private val Gold = Color(0xFFE2C07A)
-private val GoldDark = Color(0xFFB89B5E)
-private val Muted = Color(0xFFD0C4BC)
-private val ChipBg = Color(0xFF3E2A24).copy(alpha = 0.85f)
-private val CompassFace = Color(0xFFC9A24D)
-private val CompassFaceDark = Color(0xFF8B6B2E)
-private val RingColor = Color(0xFFF5F0EB)
-private val NorthRed = Color(0xFFE53935)
-private val NeedleFill = Gold.copy(alpha = 0.45f)
-
 @Composable
 fun QiblaScreen(onBack: () -> Unit) {
     val context = LocalContext.current
 
+    // ── ALL PERMISSION LOGIC UNCHANGED ───────────────────────────────────────
     var hasPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(
@@ -106,8 +98,7 @@ fun QiblaScreen(onBack: () -> Unit) {
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        hasPermission =
-            permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
+        hasPermission = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
     }
 
     LaunchedEffect(Unit) {
@@ -120,20 +111,47 @@ fun QiblaScreen(onBack: () -> Unit) {
             )
         }
     }
+    // ── END LOGIC ─────────────────────────────────────────────────────────────
 
     if (!hasPermission) {
+        // Permission denied state — premium presentation
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Brush.verticalGradient(listOf(BgTop, BgBottom))),
+                .background(FalahColors.Ivory),
             contentAlignment = Alignment.Center
         ) {
-            Text("Location permission required", color = Color.White)
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(FalahSpacing.screenRegular)
+            ) {
+                Text(
+                    text = "📍",
+                    style = MaterialTheme.typography.displaySmall
+                )
+                Spacer(Modifier.height(FalahSpacing.md))
+                Text(
+                    text = "Location Required",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = FalahColors.Forest,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(Modifier.height(FalahSpacing.xs))
+                Text(
+                    text = "Allow location access to find the Qibla direction from your current position.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = FalahColors.WarmBrown
+                )
+            }
         }
     } else {
         PremiumCompass(onBack = onBack)
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Compass screen — all sensor/calculation logic UNCHANGED
+// ─────────────────────────────────────────────────────────────────────────────
 
 @SuppressLint("MissingPermission")
 @Composable
@@ -142,6 +160,7 @@ fun PremiumCompass(onBack: () -> Unit) {
     val sensorManager =
         context.getSystemService(android.content.Context.SENSOR_SERVICE) as SensorManager
 
+    // ── ALL LOGIC UNCHANGED ──────────────────────────────────────────────────
     var azimuth by remember { mutableFloatStateOf(0f) }
     var qiblaBearing by remember { mutableFloatStateOf(0f) }
     var hasLocation by remember { mutableStateOf(false) }
@@ -306,19 +325,20 @@ fun PremiumCompass(onBack: () -> Unit) {
         accuracy >= SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM -> "✓"
         else -> "!"
     }
+    // ── END LOGIC ─────────────────────────────────────────────────────────────
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(BgTop, BgBottom)))
+            .background(FalahColors.Ivory)
             .statusBarsPadding()
-            .padding(horizontal = 20.dp)
-            .padding(top = 8.dp, bottom = 16.dp)
+            .padding(horizontal = FalahSpacing.screenRegular)
+            .padding(top = FalahSpacing.xs, bottom = FalahSpacing.md)
     ) {
         QiblaTopBar(onBack = onBack)
 
         Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(FalahSpacing.xs),
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState())
@@ -330,47 +350,61 @@ fun PremiumCompass(onBack: () -> Unit) {
             }
         }
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(FalahSpacing.lg))
 
-        Box(
+        // Responsive compass — fills available space, clamped to a safe range
+        BoxWithConstraints(
             contentAlignment = Alignment.Center,
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
         ) {
+            // Derive compass size from available constraints
+            val rawSize = if (maxWidth < maxHeight * 0.9f) maxWidth else maxHeight * 0.9f
+            val compassSize = rawSize.coerceIn(220.dp, 300.dp)
+
             QiblaCompass(
                 compassRotation = animatedCompassRotation,
                 qiblaBearing = qiblaBearing,
                 isAligned = isAligned,
-                modifier = Modifier.size(300.dp)
+                compassSize = compassSize,
+                modifier = Modifier.size(compassSize)
             )
         }
 
+        // Direction instruction
         Text(
             text = when {
                 isLoadingLocation -> "Getting your location…"
                 !hasLocation -> "Enable GPS to find Qibla direction"
                 !hasCompassSensor -> "Compass sensor not available"
-                isAligned -> "Facing Qibla"
+                isAligned -> "Facing Qibla ✦"
                 else -> "Rotate ${abs(angleToQibla).toInt()}° ${
                     if (angleToQibla > 0) "clockwise" else "counter-clockwise"
                 }"
             },
-            fontSize = if (isAligned) 24.sp else 18.sp,
-            fontWeight = if (isAligned) FontWeight.Bold else FontWeight.Medium,
+            style = if (isAligned) {
+                MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+            } else {
+                MaterialTheme.typography.bodyLarge
+            },
             color = when {
-                isLoadingLocation -> Muted
-                !hasLocation -> Color(0xFFFF8A80)
-                !hasCompassSensor -> Color(0xFFFF8A80)
-                isAligned -> Gold
-                else -> Muted
+                isLoadingLocation -> FalahColors.WarmBrown
+                !hasLocation -> FalahColors.Danger
+                !hasCompassSensor -> FalahColors.Danger
+                isAligned -> FalahColors.Forest
+                else -> FalahColors.WarmBrown
             },
             modifier = Modifier
                 .align(Alignment.CenterHorizontally)
-                .padding(vertical = 12.dp)
+                .padding(vertical = FalahSpacing.sm)
         )
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Top bar
+// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun QiblaTopBar(onBack: () -> Unit) {
@@ -379,19 +413,15 @@ private fun QiblaTopBar(onBack: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
         ) {
+            // Back button — Forest circle + Brass border
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .size(46.dp)
-                    .shadow(8.dp, CircleShape, ambientColor = Gold.copy(alpha = 0.15f))
+                    .size(40.dp)
+                    .shadow(2.dp, CircleShape, ambientColor = FalahColors.Forest.copy(0.15f))
                     .clip(CircleShape)
-                    .background(
-                        Brush.radialGradient(
-                            colors = listOf(Color(0xFF4A3530), Color(0xFF2A1C18)),
-                            radius = 60f
-                        )
-                    )
-                    .border(1.dp, Gold.copy(alpha = 0.4f), CircleShape)
+                    .background(FalahColors.Forest)
+                    .border(1.5.dp, FalahColors.Brass.copy(alpha = 0.5f), CircleShape)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
@@ -399,57 +429,45 @@ private fun QiblaTopBar(onBack: () -> Unit) {
                     )
             ) {
                 BackChevronIcon(
-                    modifier = Modifier.size(22.dp),
-                    color = Gold
+                    modifier = Modifier.size(20.dp),
+                    color = FalahColors.SoftBrass
                 )
             }
 
-            Spacer(Modifier.width(16.dp))
+            Spacer(Modifier.width(FalahSpacing.md))
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "Qibla",
-                    style = TextStyle(
-                        brush = Brush.linearGradient(
-                            colors = listOf(GoldDark, Gold, Color(0xFFFFF5E6), Gold)
-                        ),
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.8.sp
-                    )
+                    style = MaterialTheme.typography.titleLarge,
+                    color = FalahColors.Forest,
+                    fontWeight = FontWeight.SemiBold
                 )
                 Text(
                     text = "Direction to the Kaaba",
-                    fontSize = 13.sp,
-                    color = Muted.copy(alpha = 0.7f),
-                    letterSpacing = 0.3.sp,
-                    modifier = Modifier.padding(top = 2.dp)
+                    style = MaterialTheme.typography.labelMedium,
+                    color = FalahColors.WarmBrown,
+                    modifier = Modifier.padding(top = 1.dp)
                 )
             }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(FalahSpacing.md))
 
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(1.dp)
-                .background(
-                    Brush.horizontalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            Gold.copy(alpha = 0.15f),
-                            Gold.copy(alpha = 0.5f),
-                            Gold.copy(alpha = 0.15f),
-                            Color.Transparent
-                        )
-                    )
-                )
+                .background(FalahColors.WarmSand)
         )
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(FalahSpacing.md))
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Back chevron icon — drawing logic unchanged
+// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun BackChevronIcon(
@@ -475,30 +493,46 @@ private fun BackChevronIcon(
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Status chip
+// ─────────────────────────────────────────────────────────────────────────────
+
 @Composable
 private fun StatusChip(icon: String, label: String) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(ChipBg)
-            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .clip(FalahShapes.Pill)
+            .background(FalahColors.ButterCream)
+            .border(1.dp, FalahColors.WarmSand, FalahShapes.Pill)
+            .padding(horizontal = FalahSpacing.sm, vertical = FalahSpacing.xs)
     ) {
-        Text(icon, fontSize = 14.sp)
-        Spacer(Modifier.width(6.dp))
-        Text(label, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        Text(icon, style = MaterialTheme.typography.labelMedium)
+        Spacer(Modifier.width(FalahSpacing.xxs))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = FalahColors.InkBrown,
+            fontWeight = FontWeight.Medium
+        )
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Compass — size is now passed as parameter, derived from BoxWithConstraints
+// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun QiblaCompass(
     compassRotation: Float,
     qiblaBearing: Float,
     isAligned: Boolean,
+    compassSize: Dp,
     modifier: Modifier = Modifier
 ) {
     val density = LocalDensity.current
-    val kaabaRadiusPx = with(density) { 118.dp.toPx() }
+    // Kaaba radius: 39.3% of compass diameter (was hardcoded 118dp / 300dp ≈ 0.393)
+    val kaabaRadiusPx = with(density) { (compassSize * 0.393f).toPx() }
 
     Box(contentAlignment = Alignment.Center, modifier = modifier) {
         Box(
@@ -508,7 +542,10 @@ private fun QiblaCompass(
         ) {
             CompassDial(modifier = Modifier.fillMaxSize())
 
-            CompassCardinals(modifier = Modifier.fillMaxSize())
+            CompassCardinals(
+                compassSize = compassSize,
+                modifier = Modifier.fillMaxSize()
+            )
 
             Image(
                 painter = painterResource(R.drawable.kaaba),
@@ -530,6 +567,10 @@ private fun QiblaCompass(
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Compass dial — geometry unchanged, only colors updated to Falah palette
+// ─────────────────────────────────────────────────────────────────────────────
+
 @Composable
 private fun CompassDial(modifier: Modifier = Modifier) {
     Canvas(modifier = modifier) {
@@ -538,8 +579,14 @@ private fun CompassDial(modifier: Modifier = Modifier) {
         val ringWidth = 14.dp.toPx()
         val innerRadius = outerRadius - ringWidth - 4.dp.toPx()
 
-        drawCircle(color = RingColor, radius = outerRadius - ringWidth / 2f, style = Stroke(ringWidth))
+        // Outer ring
+        drawCircle(
+            color = FalahColors.WarmSand,
+            radius = outerRadius - ringWidth / 2f,
+            style = Stroke(ringWidth)
+        )
 
+        // Tick marks — geometry unchanged
         for (degree in 0 until 360 step 30) {
             val rad = Math.toRadians(degree.toDouble())
             val isMajor = degree % 90 == 0
@@ -554,16 +601,17 @@ private fun CompassDial(modifier: Modifier = Modifier) {
                 center.y - tickEnd * cos(rad).toFloat()
             )
             drawLine(
-                color = Color(0xFF2A1C18),
+                color = FalahColors.WarmBrown,
                 start = start,
                 end = end,
                 strokeWidth = if (isMajor) 2.5f else 1.5f
             )
         }
 
+        // Compass face — ButterCream instead of gold
         drawCircle(
             brush = Brush.radialGradient(
-                colors = listOf(CompassFace, CompassFaceDark),
+                colors = listOf(FalahColors.ButterCream, FalahColors.WarmSand),
                 center = center,
                 radius = innerRadius
             ),
@@ -571,19 +619,21 @@ private fun CompassDial(modifier: Modifier = Modifier) {
             center = center
         )
 
+        // Concentric ring pattern
         val patternStep = innerRadius / 5f
         for (i in 1..4) {
             drawCircle(
-                color = GoldDark.copy(alpha = 0.18f),
+                color = FalahColors.WarmBrown.copy(alpha = 0.12f),
                 radius = patternStep * i,
                 center = center,
                 style = Stroke(1.2f)
             )
         }
+        // Diagonal pattern lines
         for (angle in 0 until 360 step 45) {
             rotate(angle.toFloat(), center) {
                 drawLine(
-                    color = GoldDark.copy(alpha = 0.12f),
+                    color = FalahColors.WarmBrown.copy(alpha = 0.08f),
                     start = Offset(center.x, center.y - innerRadius * 0.85f),
                     end = Offset(center.x, center.y + innerRadius * 0.85f),
                     strokeWidth = 1f
@@ -593,44 +643,55 @@ private fun CompassDial(modifier: Modifier = Modifier) {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Cardinal letters — offsets derived proportionally from compassSize
+// ─────────────────────────────────────────────────────────────────────────────
+
 @Composable
-private fun CompassCardinals(modifier: Modifier = Modifier) {
+private fun CompassCardinals(compassSize: Dp, modifier: Modifier = Modifier) {
+    // 52dp / 300dp ≈ 0.173 — maintains identical visual position at any size
+    val cardinalOffset = compassSize * 0.173f
+
     Box(modifier = modifier) {
         Text(
             "N",
-            color = NorthRed,
-            fontSize = 22.sp,
+            color = FalahColors.Danger,
+            style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .offset(y = 52.dp)
+                .offset(y = cardinalOffset)
         )
         Text(
             "S",
-            color = Color.White,
-            fontSize = 18.sp,
+            color = FalahColors.WarmBrown,
+            style = MaterialTheme.typography.bodyLarge,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .offset(y = (-52).dp)
+                .offset(y = -cardinalOffset)
         )
         Text(
             "E",
-            color = Color.White,
-            fontSize = 18.sp,
+            color = FalahColors.WarmBrown,
+            style = MaterialTheme.typography.bodyLarge,
             modifier = Modifier
                 .align(Alignment.CenterEnd)
-                .offset(x = (-52).dp)
+                .offset(x = -cardinalOffset)
         )
         Text(
             "W",
-            color = Color.White,
-            fontSize = 18.sp,
+            color = FalahColors.WarmBrown,
+            style = MaterialTheme.typography.bodyLarge,
             modifier = Modifier
                 .align(Alignment.CenterStart)
-                .offset(x = 52.dp)
+                .offset(x = cardinalOffset)
         )
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Fixed needle — geometry unchanged, colors updated to Falah palette
+// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun FixedCompassNeedle(modifier: Modifier = Modifier) {
@@ -646,7 +707,7 @@ private fun FixedCompassNeedle(modifier: Modifier = Modifier) {
             lineTo(center.x - needleWidth / 2f, center.y)
             close()
         }
-        drawPath(needlePath, color = NeedleFill)
+        drawPath(needlePath, color = FalahColors.Brass.copy(alpha = 0.45f))
 
         val northPointer = Path().apply {
             moveTo(center.x, center.y - needleLength - 6.dp.toPx())
@@ -654,12 +715,16 @@ private fun FixedCompassNeedle(modifier: Modifier = Modifier) {
             lineTo(center.x - 7.dp.toPx(), center.y - needleLength + 4.dp.toPx())
             close()
         }
-        drawPath(northPointer, color = NorthRed)
+        drawPath(northPointer, color = FalahColors.Danger)
 
-        drawCircle(color = Color.White, radius = 6.dp.toPx(), center = center)
-        drawCircle(color = NorthRed, radius = 3.dp.toPx(), center = center)
+        drawCircle(color = FalahColors.Ivory, radius = 6.dp.toPx(), center = center)
+        drawCircle(color = FalahColors.Danger, radius = 3.dp.toPx(), center = center)
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Math functions — UNCHANGED
+// ─────────────────────────────────────────────────────────────────────────────
 
 fun calculateQiblaDirection(
     userLat: Double,
