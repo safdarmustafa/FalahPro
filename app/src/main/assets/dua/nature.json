@@ -1,17 +1,18 @@
-[{
-  "id": 8001,
-  "title": "When the Wind Blows",
-  "arabic": "اللَّهُمَّ إِنِّي أَسْأَلُكَ خَيْرَهَا، وَخَيْرَ مَا فِيهَا، وَخَيْرَ مَا أُرْسِلَتْ بِهِ، وَأَعُوذُ بِكَ مِنْ شَرِّهَا، وَشَرِّ مَا فِيهَا، وَشَرِّ مَا أُرْسِلَتْ بِهِ",
-  "transliteration": "Allahumma inni as'aluka khayraha wa khayra ma fiha wa khayra ma ursilat bihi, wa a'udhu bika min sharriha wa sharri ma fiha wa sharri ma ursilat bihi.",
-  "translation": "O Allah, I ask You for its goodness, the goodness within it and the goodness with which it has been sent. I seek refuge in You from its evil, the evil within it and the evil with which it has been sent.",
-  "whenToRecite": "When strong winds blow.",
-  "reference": {
-    "book": "Hisnul Muslim",
-    "hadith": "Sahih Muslim",
-    "number": "899"
+[
+  {
+    "id": 8001,
+    "title": "When the Wind Blows",
+    "arabic": "اللَّهُمَّ إِنِّي أَسْأَلُكَ خَيْرَهَا، وَخَيْرَ مَا فِيهَا، وَخَيْرَ مَا أُرْسِلَتْ بِهِ، وَأَعُوذُ بِكَ مِنْ شَرِّهَا، وَشَرِّ مَا فِيهَا، وَشَرِّ مَا أُرْسِلَتْ بِهِ",
+    "transliteration": "Allahumma inni as'aluka khayraha wa khayra ma fiha wa khayra ma ursilat bihi, wa a'udhu bika min sharriha wa sharri ma fiha wa sharri ma ursilat bihi.",
+    "translation": "O Allah, I ask You for its goodness, the goodness within it and the goodness with which it has been sent. I seek refuge in You from its evil, the evil within it and the evil with which it has been sent.",
+    "whenToRecite": "When strong winds blow.",
+    "reference": {
+      "book": "Hisnul Muslim",
+      "hadith": "Sahih Muslim",
+      "number": "899"
+    },
+    "repeat": 1
   },
-  "repeat": 1
-},
   {
     "id": 8002,
     "title": "When It Rains",
@@ -31,7 +32,7 @@
     "title": "After Rain",
     "arabic": "مُطِرْنَا بِفَضْلِ اللَّهِ وَرَحْمَتِهِ",
     "transliteration": "Mutirna bifadlillahi wa rahmatih.",
-    "translation": "We have been given rain by the فضل and mercy of Allah.",
+    "translation": "We have been given rain by the grace and mercy of Allah.",
     "whenToRecite": "After rainfall.",
     "reference": {
       "book": "Hisnul Muslim",
@@ -46,13 +47,14 @@
     "arabic": "سُبْحَانَ الَّذِي يُسَبِّحُ الرَّعْدُ بِحَمْدِهِ وَالْمَلَائِكَةُ مِنْ خِيفَتِهِ",
     "transliteration": "Subhanalladhi yusabbihur-ra'du bihamdihi wal-mala'ikatu min khifatih.",
     "translation": "Glory be to Him Whom the thunder glorifies with His praise, and so do the angels out of fear of Him.",
-    "whenToRecite": "When hearing thunder.",
+    "whenToRecite": "When hearing thunder. (Narrated from Ibn al-Zubayr, not a direct prophetic hadith)",
     "reference": {
       "book": "Hisnul Muslim",
       "hadith": "Al-Muwatta",
       "number": "1802"
     },
-    "repeat": 1
+    "repeat": 1,
+    "authenticity": "salaf"
   },
   {
     "id": 8005,
@@ -67,4 +69,5 @@
       "number": "1014"
     },
     "repeat": 1
-  }]
+  }
+]

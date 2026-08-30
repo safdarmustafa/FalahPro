@@ -1,17 +1,18 @@
-[{
-  "id": 10001,
-  "title": "Entering a Gathering",
-  "arabic": "السَّلَامُ عَلَيْكُمْ وَرَحْمَةُ اللَّهِ وَبَرَكَاتُهُ",
-  "transliteration": "As-salamu 'alaykum wa rahmatullahi wa barakatuh.",
-  "translation": "Peace, mercy and blessings of Allah be upon you.",
-  "whenToRecite": "When entering a gathering.",
-  "reference": {
-    "book": "Sahih Muslim",
-    "hadith": "54",
-    "number": "54"
+[
+  {
+    "id": 10001,
+    "title": "Entering a Gathering",
+    "arabic": "السَّلَامُ عَلَيْكُمْ وَرَحْمَةُ اللَّهِ وَبَرَكَاتُهُ",
+    "transliteration": "As-salamu 'alaykum wa rahmatullahi wa barakatuh.",
+    "translation": "Peace, mercy and blessings of Allah be upon you.",
+    "whenToRecite": "When entering a gathering.",
+    "reference": {
+      "book": "Sunan Abi Dawood",
+      "hadith": "Abu Dawood 5195",
+      "number": "54"
+    },
+    "repeat": 1
   },
-  "repeat": 1
-},
   {
     "id": 10002,
     "title": "Leaving a Gathering",
@@ -62,8 +63,8 @@
     "translation": "May Allah guide you and rectify your affairs.",
     "whenToRecite": "After someone says 'YarhamukAllah' to you.",
     "reference": {
-      "book": "Hisnul Muslim",
-      "hadith": "Sahih al-Bukhari",
+      "book": "Sunan Abi Dawood",
+      "hadith": "Abu Dawood 5031",
       "number": "6224"
     },
     "repeat": 1
@@ -98,20 +99,6 @@
   },
   {
     "id": 10008,
-    "title": "Greeting a Muslim",
-    "arabic": "السَّلَامُ عَلَيْكُمْ وَرَحْمَةُ اللَّهِ وَبَرَكَاتُهُ",
-    "transliteration": "As-salamu 'alaykum wa rahmatullahi wa barakatuh.",
-    "translation": "Peace, mercy and blessings of Allah be upon you.",
-    "whenToRecite": "When greeting another Muslim.",
-    "reference": {
-      "book": "Sahih Muslim",
-      "hadith": "54",
-      "number": "54"
-    },
-    "repeat": 1
-  },
-  {
-    "id": 10009,
     "title": "Replying to Salam",
     "arabic": "وَعَلَيْكُمُ السَّلَامُ وَرَحْمَةُ اللَّهِ وَبَرَكَاتُهُ",
     "transliteration": "Wa 'alaykumus-salam wa rahmatullahi wa barakatuh.",
@@ -123,18 +110,5 @@
       "number": "4:86"
     },
     "repeat": 1
-  },
-  {
-    "id": 10010,
-    "title": "Visiting the Sick",
-    "arabic": "لَا بَأْسَ طَهُورٌ إِنْ شَاءَ اللَّهُ",
-    "transliteration": "La ba'sa, tahurun in sha' Allah.",
-    "translation": "No harm. It is a purification, if Allah wills.",
-    "whenToRecite": "When visiting someone who is ill.",
-    "reference": {
-      "book": "Hisnul Muslim",
-      "hadith": "Sahih al-Bukhari",
-      "number": "5662"
-    },
-    "repeat": 1
-  }]
+  }
+]

@@ -1,17 +1,18 @@
-[{
-  "id": 2001,
-  "title": "Before Eating (Bismillah)",
-  "arabic": "بِسْمِ اللَّهِ",
-  "transliteration": "Bismillah",
-  "translation": "In the Name of Allah.",
-  "whenToRecite": "Before starting to eat or drink.",
-  "reference": {
-    "book": "Hisnul Muslim",
-    "hadith": "Sunan Abu Dawood",
-    "number": "3767"
+[
+  {
+    "id": 2001,
+    "title": "Before Eating (Bismillah)",
+    "arabic": "بِسْمِ اللَّهِ",
+    "transliteration": "Bismillah",
+    "translation": "In the Name of Allah.",
+    "whenToRecite": "Before starting to eat or drink.",
+    "reference": {
+      "book": "Hisnul Muslim",
+      "hadith": "Sunan Abu Dawood",
+      "number": "3767"
+    },
+    "repeat": 1
   },
-  "repeat": 1
-},
   {
     "id": 2002,
     "title": "If You Forget to Say Bismillah",
@@ -116,13 +117,14 @@
     "arabic": "اللَّهُمَّ إِنِّي أَسْأَلُكَ عِلْمًا نَافِعًا وَرِزْقًا وَاسِعًا وَشِفَاءً مِنْ كُلِّ دَاءٍ",
     "transliteration": "Allahumma inni as'aluka 'ilman nafi'an wa rizqan wasi'an wa shifa'an min kulli da'.",
     "translation": "O Allah, I ask You for beneficial knowledge, abundant provision, and healing from every illness.",
-    "whenToRecite": "While drinking Zamzam water.",
+    "whenToRecite": "While drinking Zamzam water. (Narrated from Ibn Abbas, not a direct prophetic hadith)",
     "reference": {
       "book": "Reported from Ibn Abbas",
       "hadith": "Al-Mustadrak",
       "number": "1739"
     },
-    "repeat": 1
+    "repeat": 1,
+    "authenticity": "salaf"
   },
   {
     "id": 2010,
@@ -137,4 +139,5 @@
       "number": "5458"
     },
     "repeat": 1
-  }]
+  }
+]

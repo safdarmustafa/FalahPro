@@ -1,22 +1,23 @@
-[{
-  "id": 5001,
-  "title": "Before Starting a Journey",
-  "arabic": "اللَّهُ أَكْبَرُ، اللَّهُ أَكْبَرُ، اللَّهُ أَكْبَرُ، سُبْحَانَ الَّذِي سَخَّرَ لَنَا هَذَا وَمَا كُنَّا لَهُ مُقْرِنِينَ، وَإِنَّا إِلَىٰ رَبِّنَا لَمُنقَلِبُونَ",
-  "transliteration": "Allahu Akbar, Allahu Akbar, Allahu Akbar. Subhanalladhi sakhkhara lana hadha wa ma kunna lahu muqrinin, wa inna ila Rabbina lamunqalibun.",
-  "translation": "Allah is the Greatest (three times). Glory is to Him Who has subjected this to us, though we could never have accomplished it by ourselves, and surely to our Lord we shall return.",
-  "whenToRecite": "Before beginning a journey or when boarding any means of transport.",
-  "reference": {
-    "book": "Hisnul Muslim",
-    "hadith": "Sahih Muslim",
-    "number": "1342"
+[
+  {
+    "id": 5001,
+    "title": "Before Starting a Journey",
+    "arabic": "اللَّهُ أَكْبَرُ، اللَّهُ أَكْبَرُ، اللَّهُ أَكْبَرُ، سُبْحَانَ الَّذِي سَخَّرَ لَنَا هَذَا وَمَا كُنَّا لَهُ مُقْرِنِينَ، وَإِنَّا إِلَىٰ رَبِّنَا لَمُنقَلِبُونَ",
+    "transliteration": "Allahu Akbar, Allahu Akbar, Allahu Akbar. Subhanalladhi sakhkhara lana hadha wa ma kunna lahu muqrinin, wa inna ila Rabbina lamunqalibun.",
+    "translation": "Allah is the Greatest (three times). Glory is to Him Who has subjected this to us, though we could never have accomplished it by ourselves, and surely to our Lord we shall return.",
+    "whenToRecite": "Before beginning a journey or when boarding any means of transport.",
+    "reference": {
+      "book": "Hisnul Muslim",
+      "hadith": "Sahih Muslim",
+      "number": "1342"
+    },
+    "repeat": 1
   },
-  "repeat": 1
-},
   {
     "id": 5002,
     "title": "Travel Supplication",
-    "arabic": "اللَّهُمَّ إِنَّا نَسْأَلُكَ فِي سَفَرِنَا هَذَا الْبِرَّ وَالتَّقْوَىٰ، وَمِنَ الْعَمَلِ مَا تَرْضَىٰ، اللَّهُمَّ هَوِّنْ عَلَيْنَا سَفَرَنَا هَذَا وَاطْوِ عَنَّا بُعْدَهُ، اللَّهُمَّ أَنْتَ الصَّاحِبُ فِي السَّفَرِ وَالْخَلِيفَةُ فِي الْأَهْلِ...",
-    "transliteration": "Allahumma inna nas'aluka fi safarina hadhal-birra wat-taqwa, wa minal-'amali ma tarda. Allahumma hawwin 'alayna safarana hadha watwi 'anna bu'dah. Allahumma antas-sahibu fis-safar wal-khalifatu fil-ahl...",
+    "arabic": "اللَّهُمَّ إِنَّا نَسْأَلُكَ فِي سَفَرِنَا هَذَا الْبِرَّ وَالتَّقْوَى، وَمِنَ الْعَمَلِ مَا تَرْضَى، اللَّهُمَّ هَوِّنْ عَلَيْنَا سَفَرَنَا هَذَا وَاطْوِ عَنَّا بُعْدَهُ، اللَّهُمَّ أَنْتَ الصَّاحِبُ فِي السَّفَرِ، وَالْخَلِيفَةُ فِي الْأَهْلِ، اللَّهُمَّ إِنِّي أَعُوذُ بِكَ مِنْ وَعْثَاءِ السَّفَرِ، وَكَآبَةِ الْمَنْظَرِ، وَسُوءِ الْمُنْقَلَبِ فِي الْمَالِ وَالْأَهْلِ",
+    "transliteration": "Allahumma inna nas'aluka fi safarina hadhal birra wat-taqwa, wa minal amali ma tarda. Allahumma hawwin alayna safarana hadha waTwi anna bu'dahu. Allahumma antas-sahibu fis-safar, wal khalifatu fil-ahl. Allahumma inni a'udhu bika min wa'tha'is-safar, wa ka'abatil-manzar, wa su'il munqalabi fil-mali wal-ahl.",
     "translation": "O Allah, we ask You on this journey for righteousness, piety and deeds pleasing to You. O Allah, make this journey easy for us and shorten its distance. O Allah, You are our Companion during the journey and Guardian over our families.",
     "whenToRecite": "After boarding your vehicle and before starting the journey.",
     "reference": {
@@ -84,20 +85,6 @@
   },
   {
     "id": 5007,
-    "title": "Stopping During a Journey",
-    "arabic": "أَعُوذُ بِكَلِمَاتِ اللَّهِ التَّامَّاتِ مِنْ شَرِّ مَا خَلَقَ",
-    "transliteration": "A'udhu bi kalimatillahit-tammati min sharri ma khalaq.",
-    "translation": "I seek refuge in the perfect words of Allah from the evil of what He has created.",
-    "whenToRecite": "Whenever stopping at a place during travel.",
-    "reference": {
-      "book": "Hisnul Muslim",
-      "hadith": "Sahih Muslim",
-      "number": "2708"
-    },
-    "repeat": 1
-  },
-  {
-    "id": 5008,
     "title": "When Feeling Fear During Travel",
     "arabic": "اللَّهُمَّ اكْفِنِيهِمْ بِمَا شِئْتَ",
     "transliteration": "Allahummakfinihim bima shi't.",
@@ -111,7 +98,7 @@
     "repeat": 1
   },
   {
-    "id": 5009,
+    "id": 5008,
     "title": "Boarding a Vehicle",
     "arabic": "بِسْمِ اللَّهِ، الْحَمْدُ لِلَّهِ، سُبْحَانَ الَّذِي سَخَّرَ لَنَا هَذَا وَمَا كُنَّا لَهُ مُقْرِنِينَ، وَإِنَّا إِلَىٰ رَبِّنَا لَمُنقَلِبُونَ",
     "transliteration": "Bismillah, Alhamdulillah. Subhanalladhi sakhkhara lana hadha wa ma kunna lahu muqrinin, wa inna ila Rabbina lamunqalibun.",
@@ -125,7 +112,7 @@
     "repeat": 1
   },
   {
-    "id": 5010,
+    "id": 5009,
     "title": "Seeing Dawn During Travel",
     "arabic": "سَمِعَ سَامِعٌ بِحَمْدِ اللَّهِ وَحُسْنِ بَلَائِهِ عَلَيْنَا، رَبَّنَا صَاحِبْنَا وَأَفْضِلْ عَلَيْنَا، عَائِذًا بِاللَّهِ مِنَ النَّارِ",
     "transliteration": "Sami'a sami'un bihamdillahi wa husni bala'ihi 'alayna. Rabbana sahibna wa afḍil 'alayna. A'idhan billahi minan-nar.",
@@ -139,24 +126,10 @@
     "repeat": 1
   },
   {
-    "id": 5011,
-    "title": "Returning Home",
-    "arabic": "آيِبُونَ تَائِبُونَ عَابِدُونَ لِرَبِّنَا حَامِدُونَ",
-    "transliteration": "Ayibuna ta'ibuna 'abiduna li Rabbina hamidun.",
-    "translation": "We return in repentance, worshipping our Lord and praising Him.",
-    "whenToRecite": "Upon returning safely from a journey.",
-    "reference": {
-      "book": "Hisnul Muslim",
-      "hadith": "Sahih al-Bukhari",
-      "number": "3085"
-    },
-    "repeat": 1
-  },
-  {
-    "id": 5012,
+    "id": 5010,
     "title": "Takbir and Tasbih During Travel",
-    "arabic": "اللَّهُ أَكْبَرُ ... سُبْحَانَ اللَّهِ",
-    "transliteration": "Allahu Akbar... SubhanAllah.",
+    "arabic": "اللَّهُ أَكْبَرُ، اللَّهُ أَكْبَرُ، اللَّهُ أَكْبَرُ، سُبْحَانَ الَّذِي سَخَّرَ لَنَا هَذَا وَمَا كُنَّا لَهُ مُقْرِنِينَ، وَإِنَّا إِلَى رَبِّنَا لَمُنقَلِبُونَ، اللَّهُمَّ إِنَّا نَسْأَلُكَ فِي سَفَرِنَا هَذَا الْبِرَّ وَالتَّقْوَى، وَمِنَ الْعَمَلِ مَا تَرْضَى، اللَّهُمَّ اغْفِرْ لَنَا وَارْحَمْنَا، أَنْتَ غَفُورٌ رَحِيمٌ",
+    "transliteration": "Allahu akbar, Allahu akbar, Allahu akbar. Subhanalladhi sakhkhara lana hadha wa ma kunna lahu muqrinin. Wa inna ila rabbina lamunqalibun. Allahumma inna nas'aluka fi safarina hadhal birra wat-taqwa wa minal amali ma tarda. Allahummaghfir lana warhamna anta ghafurun rahim.",
     "translation": "The Prophet ﷺ would say 'Allahu Akbar' when ascending high places and 'SubhanAllah' when descending.",
     "whenToRecite": "While travelling through hills, mountains, or elevated roads.",
     "reference": {
@@ -165,4 +138,5 @@
       "number": "2993"
     },
     "repeat": 1
-  }]
+  }
+]

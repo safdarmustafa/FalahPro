@@ -15,23 +15,26 @@ import kotlin.coroutines.resume
 private const val LOCATION_TIMEOUT_MS = 15_000L
 
 /**
- * Fetches the device's current location for prayer times / Qibla.
- * 1. Tries last known location first (fast; works with emulator mock location).
- * 2. If null, requests a fresh fix with a 15s timeout so we don't hang.
+ * One-shot location for callers that only need a single Pair.
+ * Last-known (≤1.5s) if available; otherwise one bounded high-accuracy request (≤15s).
  *
- * On emulator: set location in Extended Controls (⋮) → Location →
- * e.g. Patna, Bihar: 25.5941, 85.1376 then "Set Location".
+ * For last-known now + a later current fix, call [getLastKnownLocationOrAwait] then
+ * [requestFreshUserLocation] so the UI can apply the first result without waiting on GPS.
  */
 @SuppressLint("MissingPermission")
 suspend fun getUserLocation(context: Context): Pair<Double, Double>? {
-
-    val fusedClient = LocationServices.getFusedLocationProviderClient(context)
-
-    // 1) Try last known / cached location (waits for task so emulator mock location is used)
     val last = getLastKnownLocationOrAwait(context)
     if (last != null) return last
+    return requestFreshUserLocation(context)
+}
 
-    // 2) Request fresh location with timeout
+/**
+ * Single high-accuracy update. No continuous tracking. Same 15s cap as before.
+ */
+@SuppressLint("MissingPermission")
+suspend fun requestFreshUserLocation(context: Context): Pair<Double, Double>? {
+    val fusedClient = LocationServices.getFusedLocationProviderClient(context)
+
     return withTimeoutOrNull(LOCATION_TIMEOUT_MS) {
         suspendCancellableCoroutine { continuation ->
 

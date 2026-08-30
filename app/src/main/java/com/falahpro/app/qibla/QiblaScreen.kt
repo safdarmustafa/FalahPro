@@ -2,6 +2,7 @@ package com.falahpro.app.qibla
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Context
 import android.content.pm.PackageManager
 import android.hardware.GeomagneticField
 import android.hardware.Sensor
@@ -9,39 +10,40 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.location.Geocoder
+import android.view.Surface
+import android.view.WindowManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,38 +53,37 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.core.content.ContextCompat
-import com.falahpro.app.R
 import com.falahpro.app.core.prayer.PrayerRepository
-import com.falahpro.app.location.getUserLocation
+import com.falahpro.app.location.getLastKnownLocationOrAwait
+import com.falahpro.app.location.requestFreshUserLocation
 import com.falahpro.app.ui.theme.FalahColors
-import com.falahpro.app.ui.theme.FalahShapes
-import com.falahpro.app.ui.theme.FalahSpacing
+import com.falahpro.app.ui.theme.FalahTypography
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
+import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sin
+import kotlin.math.sqrt
 
 @Composable
-fun QiblaScreen(onBack: () -> Unit) {
+fun QiblaScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit) {
     val context = LocalContext.current
 
     // ── ALL PERMISSION LOGIC UNCHANGED ───────────────────────────────────────
@@ -114,7 +115,6 @@ fun QiblaScreen(onBack: () -> Unit) {
     // ── END LOGIC ─────────────────────────────────────────────────────────────
 
     if (!hasPermission) {
-        // Permission denied state — premium presentation
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -123,23 +123,18 @@ fun QiblaScreen(onBack: () -> Unit) {
         ) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(FalahSpacing.screenRegular)
+                modifier = Modifier.padding(24.dp)
             ) {
                 Text(
-                    text = "📍",
-                    style = MaterialTheme.typography.displaySmall
-                )
-                Spacer(Modifier.height(FalahSpacing.md))
-                Text(
                     text = "Location Required",
-                    style = MaterialTheme.typography.titleMedium,
+                    style = FalahTypography.titleMedium,
                     color = FalahColors.Forest,
                     fontWeight = FontWeight.SemiBold
                 )
-                Spacer(Modifier.height(FalahSpacing.xs))
+                Spacer(Modifier.height(8.dp))
                 Text(
                     text = "Allow location access to find the Qibla direction from your current position.",
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = FalahTypography.bodyMedium,
                     color = FalahColors.WarmBrown
                 )
             }
@@ -149,18 +144,18 @@ fun QiblaScreen(onBack: () -> Unit) {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Compass screen — all sensor/calculation logic UNCHANGED
-// ─────────────────────────────────────────────────────────────────────────────
-
 @SuppressLint("MissingPermission")
 @Composable
-fun PremiumCompass(onBack: () -> Unit) {
+fun PremiumCompass(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit) {
     val context = LocalContext.current
     val sensorManager =
-        context.getSystemService(android.content.Context.SENSOR_SERVICE) as SensorManager
+        context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
+    @Suppress("DEPRECATION")
+    val windowManager = remember {
+        context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+    }
+    val haptic = LocalHapticFeedback.current
 
-    // ── ALL LOGIC UNCHANGED ──────────────────────────────────────────────────
     var azimuth by remember { mutableFloatStateOf(0f) }
     var qiblaBearing by remember { mutableFloatStateOf(0f) }
     var hasLocation by remember { mutableStateOf(false) }
@@ -169,28 +164,37 @@ fun PremiumCompass(onBack: () -> Unit) {
     var sensorAccuracy by remember { mutableStateOf<Int?>(null) }
     var cityName by remember { mutableStateOf("Locating…") }
     var declination by remember { mutableFloatStateOf(0f) }
+    val declinationRef = remember { FloatArray(1) }
+    val azimuthRef = remember { FloatArray(1) }
+    var userLat by remember { mutableDoubleStateOf(0.0) }
+    var userLng by remember { mutableDoubleStateOf(0.0) }
+    var isAligned by remember { mutableStateOf(false) }
 
     val kaabaLat = 21.4225
     val kaabaLng = 39.8262
 
     LaunchedEffect(Unit) {
         isLoadingLocation = true
-        val loc = getUserLocation(context)
-        if (loc != null) {
-            val (lat, lng) = loc
+
+        suspend fun applyCoordinates(lat: Double, lng: Double) {
             qiblaBearing = calculateQiblaDirection(lat, lng, kaabaLat, kaabaLng)
             hasLocation = true
-            declination = GeomagneticField(
+            userLat = lat
+            userLng = lng
+            val newDeclination = GeomagneticField(
                 lat.toFloat(),
                 lng.toFloat(),
                 0f,
                 System.currentTimeMillis()
             ).declination
+            declinationRef[0] = newDeclination
+            declination = newDeclination
 
             val cached = PrayerRepository.getInstance(context).getCachedCityName()
             cityName = cached ?: withContext(Dispatchers.IO) {
                 try {
                     val geocoder = Geocoder(context, java.util.Locale.getDefault())
+                    @Suppress("DEPRECATION")
                     val addresses = geocoder.getFromLocation(lat, lng, 1)
                     if (!addresses.isNullOrEmpty()) {
                         addresses[0].locality
@@ -204,69 +208,99 @@ fun PremiumCompass(onBack: () -> Unit) {
                     "Unknown"
                 }
             }
-        } else {
+        }
+
+        val lastKnown = getLastKnownLocationOrAwait(context)
+        if (lastKnown != null) {
+            applyCoordinates(lastKnown.first, lastKnown.second)
+            isLoadingLocation = false
+        }
+
+        val fresh = requestFreshUserLocation(context)
+        if (fresh != null) {
+            applyCoordinates(fresh.first, fresh.second)
+            isLoadingLocation = false
+        } else if (lastKnown == null) {
             hasLocation = false
             cityName = "GPS unavailable"
+            isLoadingLocation = false
         }
-        isLoadingLocation = false
     }
 
-    DisposableEffect(declination) {
-        val rotationVector: Sensor? =
-            sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
-        val accelerometer: Sensor? =
-            sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-        val magnetometer: Sensor? =
-            sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
-
-        val gravity = FloatArray(3)
-        val geomagnetic = FloatArray(3)
-        var haveGravity = false
-        var haveGeomagnetic = false
-
-        val rotationMatrix = FloatArray(9)
-        val orientation = FloatArray(3)
-
-        fun publish(rawMagneticDeg: Float) {
-            val trueDeg = (rawMagneticDeg + declination + 360f) % 360f
-            azimuth = lowPassAngle(azimuth, trueDeg)
+    LaunchedEffect(azimuth, qiblaBearing) {
+        val diff = abs(((qiblaBearing - azimuth + 180f + 360f) % 360f) - 180f)
+        val wasAligned = isAligned
+        isAligned = diff < 5f
+        if (isAligned && !wasAligned) {
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
         }
+    }
+
+    DisposableEffect(Unit) {
+        val geomagneticRotationSensor =
+            sensorManager.getDefaultSensor(Sensor.TYPE_GEOMAGNETIC_ROTATION_VECTOR)
+        val accelerometerSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        val magneticSensor = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
+        val usingGeoRotVec = geomagneticRotationSensor != null
 
         val listener = object : SensorEventListener {
+            val accelValues = FloatArray(3)
+            val magValues = FloatArray(3)
+            val rotationMatrix = FloatArray(9)
+            val remappedMatrix = FloatArray(9)
+            val orientation = FloatArray(3)
+
             override fun onSensorChanged(event: SensorEvent) {
                 when (event.sensor.type) {
-                    Sensor.TYPE_ROTATION_VECTOR -> {
+                    Sensor.TYPE_GEOMAGNETIC_ROTATION_VECTOR -> {
                         SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
-                        SensorManager.getOrientation(rotationMatrix, orientation)
-                        val deg = Math.toDegrees(orientation[0].toDouble()).toFloat()
-                        publish((deg + 360f) % 360f)
+                        computeAzimuth()
                     }
                     Sensor.TYPE_ACCELEROMETER -> {
-                        System.arraycopy(event.values, 0, gravity, 0, 3)
-                        haveGravity = true
+                        System.arraycopy(event.values, 0, accelValues, 0, 3)
+                        if (!usingGeoRotVec) computeFromAccelMag()
                     }
                     Sensor.TYPE_MAGNETIC_FIELD -> {
-                        System.arraycopy(event.values, 0, geomagnetic, 0, 3)
-                        haveGeomagnetic = true
-                    }
-                }
-
-                if (event.sensor.type != Sensor.TYPE_ROTATION_VECTOR &&
-                    haveGravity && haveGeomagnetic
-                ) {
-                    if (SensorManager.getRotationMatrix(
-                            rotationMatrix, null, gravity, geomagnetic
-                        )
-                    ) {
-                        SensorManager.getOrientation(rotationMatrix, orientation)
-                        val deg = Math.toDegrees(orientation[0].toDouble()).toFloat()
-                        publish((deg + 360f) % 360f)
+                        System.arraycopy(event.values, 0, magValues, 0, 3)
+                        if (!usingGeoRotVec) computeFromAccelMag()
                     }
                 }
             }
 
+            fun computeFromAccelMag() {
+                val success = SensorManager.getRotationMatrix(
+                    rotationMatrix, null, accelValues, magValues
+                )
+                if (success) computeAzimuth()
+            }
+
+            @Suppress("DEPRECATION")
+            fun computeAzimuth() {
+                val display = windowManager.defaultDisplay
+                val (axisX, axisY) = when (display.rotation) {
+                    Surface.ROTATION_90 -> SensorManager.AXIS_Y to SensorManager.AXIS_MINUS_X
+                    Surface.ROTATION_180 -> SensorManager.AXIS_MINUS_X to SensorManager.AXIS_MINUS_Y
+                    Surface.ROTATION_270 -> SensorManager.AXIS_MINUS_Y to SensorManager.AXIS_X
+                    else -> SensorManager.AXIS_X to SensorManager.AXIS_Y
+                }
+                if (!SensorManager.remapCoordinateSystem(rotationMatrix, axisX, axisY, remappedMatrix)) {
+                    return
+                }
+                SensorManager.getOrientation(remappedMatrix, orientation)
+
+                val rawDeg = Math.toDegrees(orientation[0].toDouble()).toFloat()
+                val normalizedDeg = (rawDeg + 360f) % 360f
+                val trueDeg = (normalizedDeg + declinationRef[0] + 360f) % 360f
+
+                val delta = abs(trueDeg - azimuthRef[0])
+                val wrapDelta = if (delta > 180f) 360f - delta else delta
+                val alpha = if (wrapDelta > 10f) 0.35f else 0.12f
+                azimuthRef[0] = lowPassAngle(azimuthRef[0], trueDeg, alpha)
+                azimuth = azimuthRef[0]
+            }
+
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
-                if (sensor?.type == Sensor.TYPE_ROTATION_VECTOR ||
+                if (sensor?.type == Sensor.TYPE_GEOMAGNETIC_ROTATION_VECTOR ||
                     sensor?.type == Sensor.TYPE_MAGNETIC_FIELD
                 ) {
                     sensorAccuracy = accuracy
@@ -274,25 +308,27 @@ fun PremiumCompass(onBack: () -> Unit) {
             }
         }
 
-        when {
-            rotationVector != null -> {
-                sensorManager.registerListener(
-                    listener, rotationVector, SensorManager.SENSOR_DELAY_GAME
-                )
-                hasCompassSensor = true
-            }
-            accelerometer != null && magnetometer != null -> {
-                sensorManager.registerListener(
-                    listener, accelerometer, SensorManager.SENSOR_DELAY_GAME
-                )
-                sensorManager.registerListener(
-                    listener, magnetometer, SensorManager.SENSOR_DELAY_GAME
-                )
-                hasCompassSensor = true
-            }
-            else -> {
-                hasCompassSensor = false
-            }
+        if (usingGeoRotVec) {
+            sensorManager.registerListener(
+                listener,
+                geomagneticRotationSensor,
+                SensorManager.SENSOR_DELAY_GAME
+            )
+            hasCompassSensor = true
+        } else if (accelerometerSensor != null && magneticSensor != null) {
+            sensorManager.registerListener(
+                listener,
+                accelerometerSensor,
+                SensorManager.SENSOR_DELAY_GAME
+            )
+            sensorManager.registerListener(
+                listener,
+                magneticSensor,
+                SensorManager.SENSOR_DELAY_GAME
+            )
+            hasCompassSensor = true
+        } else {
+            hasCompassSensor = false
         }
 
         onDispose {
@@ -300,431 +336,406 @@ fun PremiumCompass(onBack: () -> Unit) {
         }
     }
 
-    val animatedCompassRotation by animateFloatAsState(
-        targetValue = -azimuth,
-        animationSpec = tween(200),
-        label = "compassRotation"
-    )
-
-    val angleToQibla = normalizeAngle(qiblaBearing - azimuth)
-    val isAligned = abs(angleToQibla) < 5
-
-    val accuracy = sensorAccuracy
-    val accuracyLabel = when {
-        !hasCompassSensor -> "No compass"
-        accuracy == null -> "Checking…"
-        accuracy >= SensorManager.SENSOR_STATUS_ACCURACY_HIGH -> "Good accuracy"
-        accuracy == SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM -> "Fair accuracy"
-        accuracy == SensorManager.SENSOR_STATUS_ACCURACY_LOW -> "Low accuracy"
-        else -> "Calibrate device"
-    }
-
-    val accuracyIcon = when {
-        !hasCompassSensor -> "⚠"
-        accuracy == null -> "…"
-        accuracy >= SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM -> "✓"
-        else -> "!"
-    }
-    // ── END LOGIC ─────────────────────────────────────────────────────────────
-
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(FalahColors.Ivory)
             .statusBarsPadding()
-            .padding(horizontal = FalahSpacing.screenRegular)
-            .padding(top = FalahSpacing.xs, bottom = FalahSpacing.md)
     ) {
-        QiblaTopBar(onBack = onBack)
-
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(FalahSpacing.xs),
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            StatusChip(icon = "📍", label = cityName)
-            StatusChip(icon = accuracyIcon, label = accuracyLabel)
-            if (hasLocation) {
-                StatusChip(icon = "🧭", label = "${qiblaBearing.roundToInt()}°")
-            }
-        }
-
-        Spacer(Modifier.height(FalahSpacing.lg))
-
-        // Responsive compass — fills available space, clamped to a safe range
-        BoxWithConstraints(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-        ) {
-            // Derive compass size from available constraints
-            val rawSize = if (maxWidth < maxHeight * 0.9f) maxWidth else maxHeight * 0.9f
-            val compassSize = rawSize.coerceIn(220.dp, 300.dp)
-
-            QiblaCompass(
-                compassRotation = animatedCompassRotation,
-                qiblaBearing = qiblaBearing,
-                isAligned = isAligned,
-                compassSize = compassSize,
-                modifier = Modifier.size(compassSize)
-            )
-        }
-
-        // Direction instruction
-        Text(
-            text = when {
-                isLoadingLocation -> "Getting your location…"
-                !hasLocation -> "Enable GPS to find Qibla direction"
-                !hasCompassSensor -> "Compass sensor not available"
-                isAligned -> "Facing Qibla ✦"
-                else -> "Rotate ${abs(angleToQibla).toInt()}° ${
-                    if (angleToQibla > 0) "clockwise" else "counter-clockwise"
-                }"
-            },
-            style = if (isAligned) {
-                MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
-            } else {
-                MaterialTheme.typography.bodyLarge
-            },
-            color = when {
-                isLoadingLocation -> FalahColors.WarmBrown
-                !hasLocation -> FalahColors.Danger
-                !hasCompassSensor -> FalahColors.Danger
-                isAligned -> FalahColors.Forest
-                else -> FalahColors.WarmBrown
-            },
-            modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-                .padding(vertical = FalahSpacing.sm)
-        )
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Top bar
-// ─────────────────────────────────────────────────────────────────────────────
-
-@Composable
-private fun QiblaTopBar(onBack: () -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            // Back button — Forest circle + Brass border
             Box(
-                contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .size(40.dp)
-                    .shadow(2.dp, CircleShape, ambientColor = FalahColors.Forest.copy(0.15f))
-                    .clip(CircleShape)
-                    .background(FalahColors.Forest)
-                    .border(1.5.dp, FalahColors.Brass.copy(alpha = 0.5f), CircleShape)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = onBack
-                    )
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 14.dp),
+                contentAlignment = Alignment.Center
             ) {
-                BackChevronIcon(
-                    modifier = Modifier.size(20.dp),
-                    color = FalahColors.SoftBrass
+                Text(
+                    text = "Qibla Direction",
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 16.sp,
+                    color = FalahColors.Forest
                 )
             }
+            Box(Modifier.fillMaxWidth().height(1.dp).background(FalahColors.WarmSand))
 
-            Spacer(Modifier.width(FalahSpacing.md))
+            Spacer(Modifier.height(16.dp))
 
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Qibla",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = FalahColors.Forest,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = "Direction to the Kaaba",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = FalahColors.WarmBrown,
-                    modifier = Modifier.padding(top = 1.dp)
-                )
-            }
-        }
-
-        Spacer(Modifier.height(FalahSpacing.md))
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(FalahColors.WarmSand)
-        )
-
-        Spacer(Modifier.height(FalahSpacing.md))
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Back chevron icon — drawing logic unchanged
-// ─────────────────────────────────────────────────────────────────────────────
-
-@Composable
-private fun BackChevronIcon(
-    color: Color,
-    modifier: Modifier = Modifier
-) {
-    Canvas(modifier = modifier) {
-        val stroke = 2.2.dp.toPx()
-        val path = Path().apply {
-            moveTo(size.width * 0.62f, size.height * 0.18f)
-            lineTo(size.width * 0.32f, size.height * 0.5f)
-            lineTo(size.width * 0.62f, size.height * 0.82f)
-        }
-        drawPath(
-            path = path,
-            color = color,
-            style = Stroke(
-                width = stroke,
-                cap = StrokeCap.Round,
-                join = StrokeJoin.Round
+            TopBarRow(
+                cityName = cityName,
+                sensorAccuracy = sensorAccuracy,
+                hasCompassSensor = hasCompassSensor,
+                qiblaBearing = qiblaBearing,
+                hasLocation = hasLocation
             )
-        )
+
+            Spacer(Modifier.height(20.dp))
+
+            Box(
+                contentAlignment = Alignment.TopCenter,
+                modifier = Modifier.weight(1f)
+            ) {
+                FalahQiblaCompass(
+                    azimuth = azimuth,
+                    modifier = Modifier
+                        .size(300.dp)
+                        .padding(top = 26.dp)
+                )
+                KaabaBadge(modifier = Modifier.zIndex(1f))
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            Box(
+                modifier = Modifier.height(52.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = isAligned && hasLocation && hasCompassSensor,
+                    enter = fadeIn(tween(400)) + scaleIn(initialScale = 0.9f),
+                    exit = fadeOut(tween(300))
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(100.dp))
+                            .background(FalahColors.SoftBrass.copy(alpha = 0.5f))
+                            .border(1.dp, FalahColors.Brass, RoundedCornerShape(100.dp))
+                            .padding(horizontal = 20.dp, vertical = 10.dp)
+                    ) {
+                        Text(
+                            text = "✦  Facing Qibla",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = FalahColors.Forest
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            if (hasLocation) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(FalahColors.ButterCream)
+                        .border(1.dp, FalahColors.WarmSand, RoundedCornerShape(16.dp))
+                        .padding(horizontal = 16.dp, vertical = 14.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "📍 $cityName",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = FalahColors.InkBrown
+                            )
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                text = "Makkah Al-Mukarramah",
+                                fontSize = 11.sp,
+                                color = FalahColors.Brass
+                            )
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                text = "${qiblaBearing.roundToInt()}°",
+                                fontSize = 26.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = FalahColors.Forest,
+                                lineHeight = 26.sp
+                            )
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                text = "${calculateDistanceKm(userLat, userLng, kaabaLat, kaabaLng).roundToInt()} km",
+                                fontSize = 11.sp,
+                                color = FalahColors.WarmBrown
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+        }
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Status chip
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
-private fun StatusChip(icon: String, label: String) {
+private fun StatusPill(
+    leading: String,
+    text: String,
+    textColor: Color
+) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
-            .clip(FalahShapes.Pill)
+            .clip(RoundedCornerShape(100.dp))
             .background(FalahColors.ButterCream)
-            .border(1.dp, FalahColors.WarmSand, FalahShapes.Pill)
-            .padding(horizontal = FalahSpacing.sm, vertical = FalahSpacing.xs)
+            .border(1.dp, FalahColors.WarmSand, RoundedCornerShape(100.dp))
+            .padding(horizontal = 12.dp, vertical = 7.dp)
     ) {
-        Text(icon, style = MaterialTheme.typography.labelMedium)
-        Spacer(Modifier.width(FalahSpacing.xxs))
+        Text(text = leading, fontSize = 12.sp, color = textColor)
+        Spacer(Modifier.width(4.dp))
         Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = FalahColors.InkBrown,
-            fontWeight = FontWeight.Medium
+            text = text,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            color = textColor,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Compass — size is now passed as parameter, derived from BoxWithConstraints
-// ─────────────────────────────────────────────────────────────────────────────
+@Composable
+private fun TopBarRow(
+    cityName: String,
+    sensorAccuracy: Int?,
+    hasCompassSensor: Boolean,
+    qiblaBearing: Float,
+    hasLocation: Boolean
+) {
+    val (accLabel, accColor) = when {
+        !hasCompassSensor ->
+            "No sensor" to FalahColors.Danger
+        sensorAccuracy == null ->
+            "Reading…" to FalahColors.WarmBrown
+        sensorAccuracy == SensorManager.SENSOR_STATUS_ACCURACY_HIGH ->
+            "High accuracy" to FalahColors.OldMoneyGreen
+        sensorAccuracy == SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM ->
+            "Move in figure‑8" to Color(0xFF8B6000)
+        else ->
+            "Low accuracy" to FalahColors.Danger
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        StatusPill(
+            leading = "📍",
+            text = cityName,
+            textColor = FalahColors.InkBrown
+        )
+        StatusPill(
+            leading = if (sensorAccuracy == SensorManager.SENSOR_STATUS_ACCURACY_HIGH) "✓" else "◌",
+            text = accLabel,
+            textColor = accColor
+        )
+        StatusPill(
+            leading = "🧭",
+            text = if (hasLocation) "${qiblaBearing.roundToInt()}°" else "—",
+            textColor = FalahColors.Forest
+        )
+    }
+}
 
 @Composable
-private fun QiblaCompass(
-    compassRotation: Float,
-    qiblaBearing: Float,
-    isAligned: Boolean,
-    compassSize: Dp,
+private fun KaabaBadge(modifier: Modifier = Modifier) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier
+            .size(52.dp)
+            .shadow(
+                elevation = 8.dp,
+                shape = CircleShape,
+                ambientColor = FalahColors.Brass.copy(alpha = 0.3f),
+                spotColor = FalahColors.Brass.copy(alpha = 0.3f)
+            )
+            .clip(CircleShape)
+            .background(FalahColors.ButterCream)
+            .border(2.dp, FalahColors.Brass, CircleShape)
+    ) {
+        Text(text = "🕋", fontSize = 24.sp)
+    }
+}
+
+@Composable
+fun FalahQiblaCompass(
+    azimuth: Float,
     modifier: Modifier = Modifier
 ) {
-    val density = LocalDensity.current
-    // Kaaba radius: 39.3% of compass diameter (was hardcoded 118dp / 300dp ≈ 0.393)
-    val kaabaRadiusPx = with(density) { (compassSize * 0.393f).toPx() }
+    val animatedAzimuth by animateFloatAsState(
+        targetValue = -azimuth,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioLowBouncy,
+            stiffness = Spring.StiffnessMediumLow
+        ),
+        label = "compass"
+    )
 
-    Box(contentAlignment = Alignment.Center, modifier = modifier) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer { rotationZ = compassRotation }
-        ) {
-            CompassDial(modifier = Modifier.fillMaxSize())
-
-            CompassCardinals(
-                compassSize = compassSize,
-                modifier = Modifier.fillMaxSize()
-            )
-
-            Image(
-                painter = painterResource(R.drawable.kaaba),
-                contentDescription = "Kaaba",
-                modifier = Modifier
-                    .size(if (isAligned) 44.dp else 36.dp)
-                    .align(Alignment.Center)
-                    .offset {
-                        val rad = Math.toRadians(qiblaBearing.toDouble())
-                        IntOffset(
-                            (kaabaRadiusPx * sin(rad)).roundToInt(),
-                            (-kaabaRadiusPx * cos(rad)).roundToInt()
-                        )
-                    }
-            )
-        }
-
-        FixedCompassNeedle(modifier = Modifier.fillMaxSize())
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Compass dial — geometry unchanged, only colors updated to Falah palette
-// ─────────────────────────────────────────────────────────────────────────────
-
-@Composable
-private fun CompassDial(modifier: Modifier = Modifier) {
     Canvas(modifier = modifier) {
-        val center = Offset(size.width / 2f, size.height / 2f)
-        val outerRadius = size.minDimension / 2f
-        val ringWidth = 14.dp.toPx()
-        val innerRadius = outerRadius - ringWidth - 4.dp.toPx()
+        val cx = size.width / 2f
+        val cy = size.height / 2f
+        val outerR = size.minDimension / 2f - 2.dp.toPx()
+        val dialR = outerR * 0.72f
 
-        // Outer ring
-        drawCircle(
-            color = FalahColors.WarmSand,
-            radius = outerRadius - ringWidth / 2f,
-            style = Stroke(ringWidth)
-        )
-
-        // Tick marks — geometry unchanged
-        for (degree in 0 until 360 step 30) {
-            val rad = Math.toRadians(degree.toDouble())
-            val isMajor = degree % 90 == 0
-            val tickStart = outerRadius - ringWidth - (if (isMajor) 10.dp.toPx() else 6.dp.toPx())
-            val tickEnd = outerRadius - ringWidth - 2.dp.toPx()
-            val start = Offset(
-                center.x + tickStart * sin(rad).toFloat(),
-                center.y - tickStart * cos(rad).toFloat()
-            )
-            val end = Offset(
-                center.x + tickEnd * sin(rad).toFloat(),
-                center.y - tickEnd * cos(rad).toFloat()
-            )
-            drawLine(
-                color = FalahColors.WarmBrown,
-                start = start,
-                end = end,
-                strokeWidth = if (isMajor) 2.5f else 1.5f
-            )
-        }
-
-        // Compass face — ButterCream instead of gold
-        drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(FalahColors.ButterCream, FalahColors.WarmSand),
-                center = center,
-                radius = innerRadius
-            ),
-            radius = innerRadius,
-            center = center
-        )
-
-        // Concentric ring pattern
-        val patternStep = innerRadius / 5f
-        for (i in 1..4) {
+        rotate(animatedAzimuth, Offset(cx, cy)) {
             drawCircle(
-                color = FalahColors.WarmBrown.copy(alpha = 0.12f),
-                radius = patternStep * i,
-                center = center,
-                style = Stroke(1.2f)
+                color = Color(0xFFF3EDE1),
+                radius = outerR
             )
-        }
-        // Diagonal pattern lines
-        for (angle in 0 until 360 step 45) {
-            rotate(angle.toFloat(), center) {
+
+            for (i in 0 until 360 step 5) {
+                val isMajor = i % 30 == 0
+                val isMed = i % 10 == 0
+                val tickLen = when {
+                    isMajor -> 13.dp.toPx()
+                    isMed -> 7.dp.toPx()
+                    else -> 4.dp.toPx()
+                }
+                val tickW = when {
+                    isMajor -> 2.dp.toPx()
+                    isMed -> 1.dp.toPx()
+                    else -> 0.7.dp.toPx()
+                }
+                val angle = Math.toRadians(i.toDouble())
+                val startR = outerR - 2.dp.toPx()
+                val endR = startR - tickLen
                 drawLine(
-                    color = FalahColors.WarmBrown.copy(alpha = 0.08f),
-                    start = Offset(center.x, center.y - innerRadius * 0.85f),
-                    end = Offset(center.x, center.y + innerRadius * 0.85f),
-                    strokeWidth = 1f
+                    color = if (isMajor)
+                        Color(0xFFC4A35A)
+                    else
+                        Color(0x556B4E3D),
+                    start = Offset(
+                        cx + (startR * sin(angle)).toFloat(),
+                        cy - (startR * cos(angle)).toFloat()
+                    ),
+                    end = Offset(
+                        cx + (endR * sin(angle)).toFloat(),
+                        cy - (endR * cos(angle)).toFloat()
+                    ),
+                    strokeWidth = tickW
                 )
             }
+
+            val degPaint = android.graphics.Paint().apply {
+                color = android.graphics.Color.parseColor("#C4A35A")
+                textSize = 11.sp.toPx()
+                textAlign = android.graphics.Paint.Align.CENTER
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
+                isAntiAlias = true
+            }
+            val numberR = outerR * 0.855f
+            for (deg in 0 until 360 step 30) {
+                val a = Math.toRadians(deg.toDouble())
+                val x = cx + (numberR * sin(a)).toFloat()
+                val y = cy - (numberR * cos(a)).toFloat() + 4.dp.toPx()
+                drawContext.canvas.nativeCanvas.drawText(deg.toString(), x, y, degPaint)
+            }
+
+            drawCircle(
+                color = Color(0xFFF8F4EC),
+                radius = dialR
+            )
+
+            val starPath = Path()
+            val starOuter = dialR * 0.38f
+            val starInner = dialR * 0.16f
+            for (i in 0 until 16) {
+                val r = if (i % 2 == 0) starOuter else starInner
+                val a = Math.toRadians(i * 22.5 - 90.0)
+                val x = cx + (r * sin(a)).toFloat()
+                val y = cy - (r * cos(a)).toFloat()
+                if (i == 0) starPath.moveTo(x, y) else starPath.lineTo(x, y)
+            }
+            starPath.close()
+            drawPath(starPath, color = Color(0x18C4A35A))
+
+            val cardinalPaint = android.graphics.Paint().apply {
+                color = android.graphics.Color.parseColor("#2C211C")
+                textSize = 18.sp.toPx()
+                textAlign = android.graphics.Paint.Align.CENTER
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
+                isAntiAlias = true
+            }
+            val northPaint = android.graphics.Paint(cardinalPaint).apply {
+                color = android.graphics.Color.parseColor("#0E4032")
+                textSize = 20.sp.toPx()
+            }
+            val cardinalR = dialR * 0.62f
+            listOf(0 to "N", 90 to "E", 180 to "S", 270 to "W").forEach { (deg, label) ->
+                val a = Math.toRadians(deg.toDouble())
+                val x = cx + (cardinalR * sin(a)).toFloat()
+                val y = cy - (cardinalR * cos(a)).toFloat() + 6.dp.toPx()
+                drawContext.canvas.nativeCanvas.drawText(
+                    label, x, y,
+                    if (deg == 0) northPaint else cardinalPaint
+                )
+            }
+
+            drawCircle(
+                color = Color(0xFFE6D9C6),
+                radius = dialR,
+                style = Stroke(1.dp.toPx())
+            )
         }
-    }
-}
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Cardinal letters — offsets derived proportionally from compassSize
-// ─────────────────────────────────────────────────────────────────────────────
+        val nLen = dialR * 0.56f
+        val nTail = dialR * 0.33f
+        val hw = dialR * 0.10f
 
-@Composable
-private fun CompassCardinals(compassSize: Dp, modifier: Modifier = Modifier) {
-    // 52dp / 300dp ≈ 0.173 — maintains identical visual position at any size
-    val cardinalOffset = compassSize * 0.173f
-
-    Box(modifier = modifier) {
-        Text(
-            "N",
-            color = FalahColors.Danger,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .offset(y = cardinalOffset)
-        )
-        Text(
-            "S",
-            color = FalahColors.WarmBrown,
-            style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .offset(y = -cardinalOffset)
-        )
-        Text(
-            "E",
-            color = FalahColors.WarmBrown,
-            style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .offset(x = -cardinalOffset)
-        )
-        Text(
-            "W",
-            color = FalahColors.WarmBrown,
-            style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier
-                .align(Alignment.CenterStart)
-                .offset(x = cardinalOffset)
-        )
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Fixed needle — geometry unchanged, colors updated to Falah palette
-// ─────────────────────────────────────────────────────────────────────────────
-
-@Composable
-private fun FixedCompassNeedle(modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier) {
-        val center = Offset(size.width / 2f, size.height / 2f)
-        val needleLength = size.minDimension * 0.28f
-        val needleWidth = 18.dp.toPx()
-
-        val needlePath = Path().apply {
-            moveTo(center.x, center.y - needleLength)
-            lineTo(center.x + needleWidth / 2f, center.y)
-            lineTo(center.x, center.y + needleLength * 0.55f)
-            lineTo(center.x - needleWidth / 2f, center.y)
+        val goldNeedle = Path().apply {
+            moveTo(cx, cy - nLen)
+            lineTo(cx + hw, cy)
+            lineTo(cx - hw, cy)
             close()
         }
-        drawPath(needlePath, color = FalahColors.Brass.copy(alpha = 0.45f))
+        drawPath(goldNeedle, color = Color(0xFFC4A35A))
 
-        val northPointer = Path().apply {
-            moveTo(center.x, center.y - needleLength - 6.dp.toPx())
-            lineTo(center.x + 7.dp.toPx(), center.y - needleLength + 4.dp.toPx())
-            lineTo(center.x - 7.dp.toPx(), center.y - needleLength + 4.dp.toPx())
+        val greenTail = Path().apply {
+            moveTo(cx, cy + nTail)
+            lineTo(cx + hw * 0.75f, cy)
+            lineTo(cx - hw * 0.75f, cy)
             close()
         }
-        drawPath(northPointer, color = FalahColors.Danger)
+        drawPath(greenTail, color = Color(0xFF145A45))
 
-        drawCircle(color = FalahColors.Ivory, radius = 6.dp.toPx(), center = center)
-        drawCircle(color = FalahColors.Danger, radius = 3.dp.toPx(), center = center)
+        drawLine(
+            color = Color(0x80FFFFFF),
+            start = Offset(cx, cy - nLen * 0.9f),
+            end = Offset(cx, cy + nTail * 0.9f),
+            strokeWidth = 1.dp.toPx()
+        )
+
+        drawCircle(
+            color = Color(0xFFF3EDE1),
+            radius = 8.dp.toPx(),
+            center = Offset(cx, cy)
+        )
+        drawCircle(
+            color = Color(0xFFC4A35A),
+            radius = 8.dp.toPx(),
+            center = Offset(cx, cy),
+            style = Stroke(2.dp.toPx())
+        )
+        drawCircle(
+            color = Color(0xFFC4A35A),
+            radius = 4.dp.toPx(),
+            center = Offset(cx, cy)
+        )
+
+        drawCircle(
+            color = Color(0xFFC4A35A),
+            radius = outerR,
+            style = Stroke(1.5.dp.toPx())
+        )
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Math functions — UNCHANGED
-// ─────────────────────────────────────────────────────────────────────────────
 
 fun calculateQiblaDirection(
     userLat: Double,
@@ -743,6 +754,7 @@ fun calculateQiblaDirection(
     return ((bearing + 360) % 360).toFloat()
 }
 
+@Suppress("unused")
 fun normalizeAngle(angle: Float): Float {
     var a = angle % 360
     if (a > 180) a -= 360
@@ -750,10 +762,19 @@ fun normalizeAngle(angle: Float): Float {
     return a
 }
 
-/** Smooths azimuth updates while correctly handling the 0/360 wrap-around. */
-fun lowPassAngle(prev: Float, next: Float, alpha: Float = 0.15f): Float {
+fun lowPassAngle(prev: Float, next: Float, alpha: Float): Float {
     var diff = next - prev
-    while (diff > 180f) diff -= 360f
-    while (diff < -180f) diff += 360f
-    return ((prev + alpha * diff) + 360f) % 360f
+    if (diff > 180f) diff -= 360f
+    if (diff < -180f) diff += 360f
+    return (prev + alpha * diff + 360f) % 360f
+}
+
+@Suppress("unused")
+fun calculateDistanceKm(lat1: Double, lng1: Double, lat2: Double, lng2: Double): Double {
+    val r = 6371.0
+    val dLat = Math.toRadians(lat2 - lat1)
+    val dLng = Math.toRadians(lng2 - lng1)
+    val a = sin(dLat / 2).pow(2) +
+        cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) * sin(dLng / 2).pow(2)
+    return r * 2 * atan2(sqrt(a), sqrt(1 - a))
 }

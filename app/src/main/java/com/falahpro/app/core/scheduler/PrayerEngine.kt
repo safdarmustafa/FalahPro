@@ -15,7 +15,8 @@ import com.falahpro.app.core.util.PrayerLog
 import com.falahpro.app.core.util.PrayerRuntimeState
 import com.falahpro.app.data.AzanMode
 import com.falahpro.app.data.DataStoreManager
-import com.falahpro.app.location.getUserLocation
+import com.falahpro.app.location.getLastKnownLocationOrAwait
+import com.falahpro.app.location.requestFreshUserLocation
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -247,15 +248,26 @@ object PrayerEngine {
     suspend fun syncLocationIfPermittedSync(context: Context) {
         val appContext = context.applicationContext
         if (!hasLocationPermission(appContext)) return
-        val location = getUserLocation(appContext) ?: return
         val repository = PrayerRepository.getInstance(appContext)
-        val changed = repository.updateLocationIfChanged(location.first, location.second)
-        // Always ensure the city name is resolved for display, even on the very first fix
-        // where the stored default happened to match (so the UI stops showing "—").
-        resolveCityName(appContext, location.first, location.second)
-        if (changed) {
-            repository.ensureTodayTimesCalculated()
-            rescheduleAllSync(appContext, reason = "location_updated")
+
+        suspend fun applyLocation(lat: Double, lng: Double) {
+            val changed = repository.updateLocationIfChanged(lat, lng)
+            // Always ensure the city name is resolved for display, even on the very first fix
+            // where the stored default happened to match (so the UI stops showing "—").
+            resolveCityName(appContext, lat, lng)
+            if (changed) {
+                repository.ensureTodayTimesCalculated()
+                rescheduleAllSync(appContext, reason = "location_updated")
+            }
+        }
+
+        val lastKnown = getLastKnownLocationOrAwait(appContext)
+        if (lastKnown != null) {
+            applyLocation(lastKnown.first, lastKnown.second)
+        }
+        val fresh = requestFreshUserLocation(appContext)
+        if (fresh != null) {
+            applyLocation(fresh.first, fresh.second)
         }
     }
 

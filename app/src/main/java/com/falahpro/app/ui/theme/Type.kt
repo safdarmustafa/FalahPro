@@ -4,8 +4,12 @@ import androidx.compose.material3.Typography as MaterialTypography
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.googlefonts.Font
+import androidx.compose.ui.text.googlefonts.GoogleFont
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.sp
+import com.falahpro.app.R
 
 private val LatinFamily = FontFamily.SansSerif
 
@@ -87,15 +91,33 @@ val FalahTypography = MaterialTypography(
     )
 )
 
-/**
- * Arabic/RTL body style for later screen work. Uses the platform default Arabic
- * fallback (no extra font dependency). Apply with wrapping + this line height
- * so glyphs are not clipped.
- */
+private val googleFontProvider = GoogleFont.Provider(
+    providerAuthority = "com.google.android.gms.fonts",
+    providerPackage   = "com.google.android.gms",
+    certificates      = R.array.com_google_android_gms_fonts_certs
+)
+
+private val scheherazadeFont = GoogleFont("Scheherazade New")
+
+val ScheherazadeFontFamily = FontFamily(
+    Font(
+        googleFont   = scheherazadeFont,
+        fontProvider = googleFontProvider,
+        weight       = FontWeight.Normal
+    ),
+    Font(
+        googleFont   = scheherazadeFont,
+        fontProvider = googleFontProvider,
+        weight       = FontWeight.Bold
+    )
+)
+
 val FalahArabicTextStyle = TextStyle(
-    fontFamily = FontFamily.Default,
-    fontWeight = FontWeight.Normal,
-    fontSize = 22.sp,
-    lineHeight = 40.sp,
-    textDirection = TextDirection.Rtl
+    fontFamily    = ScheherazadeFontFamily,
+    fontWeight    = FontWeight.Normal,
+    fontSize      = 22.sp,
+    lineHeight    = 44.sp,
+    textDirection = TextDirection.Rtl,
+    textAlign     = TextAlign.Center,
+    letterSpacing = 0.5.sp
 )

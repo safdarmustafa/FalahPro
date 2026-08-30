@@ -1,17 +1,18 @@
-[{
-  "id": 11001,
-  "title": "Visiting the Sick",
-  "arabic": "لَا بَأْسَ طَهُورٌ إِنْ شَاءَ اللَّهُ",
-  "transliteration": "La ba'sa, tahurun in sha' Allah.",
-  "translation": "No harm. It is a purification, if Allah wills.",
-  "whenToRecite": "When visiting someone who is ill.",
-  "reference": {
-    "book": "Hisnul Muslim",
-    "hadith": "Sahih al-Bukhari",
-    "number": "5662"
+[
+  {
+    "id": 11001,
+    "title": "Visiting the Sick",
+    "arabic": "لَا بَأْسَ طَهُورٌ إِنْ شَاءَ اللَّهُ",
+    "transliteration": "La ba'sa, tahurun in sha' Allah.",
+    "translation": "No harm. It is a purification, if Allah wills.",
+    "whenToRecite": "When visiting someone who is ill.",
+    "reference": {
+      "book": "Hisnul Muslim",
+      "hadith": "Sahih al-Bukhari",
+      "number": "5662"
+    },
+    "repeat": 1
   },
-  "repeat": 1
-},
   {
     "id": 11002,
     "title": "Ruqyah for the Sick",
@@ -113,8 +114,8 @@
   {
     "id": 11009,
     "title": "Supplication for the Deceased",
-    "arabic": "اللَّهُمَّ اغْفِرْ لَهُ وَارْحَمْهُ، وَعَافِهِ وَاعْفُ عَنْهُ",
-    "transliteration": "Allahummaghfir lahu warhamhu wa 'afihi wa'fu 'anhu.",
+    "arabic": "اللَّهُمَّ اغْفِرْ لَهُ وَارْحَمْهُ، وَعَافِهِ وَاعْفُ عَنْهُ، وَأَكْرِمْ نُزُلَهُ، وَوَسِّعْ مُدْخَلَهُ، وَاغْسِلْهُ بِالْمَاءِ وَالثَّلْجِ وَالْبَرَدِ، وَنَقِّهِ مِنَ الْخَطَايَا كَمَا نَقَّيْتَ الثَّوْبَ الْأَبْيَضَ مِنَ الدَّنَسِ، وَأَبْدِلْهُ دَارًا خَيْرًا مِنْ دَارِهِ، وَأَهْلًا خَيْرًا مِنْ أَهْلِهِ، وَزَوْجًا خَيْرًا مِنْ زَوْجِهِ، وَأَدْخِلْهُ الْجَنَّةَ، وَأَعِذْهُ مِنْ عَذَابِ الْقَبْرِ وَمِنْ عَذَابِ النَّارِ",
+    "transliteration": "Allahummaghfir lahu warhamhu, wa afihi wa'fu anhu, wa akrim nuzulahu, wa wassi' madkhalahu, waghsilhu bil ma'i wath-thalji wal-barad, wa naqqihi minal khataaya kama naqqaytat-thawbal abyada minad-danas, wa abdilhu daran khayran min darihi, wa ahlan khayran min ahlihi, wa zawjan khayran min zawjihi, wa adkhilhul jannata, wa a'idhhu min adhabill qabri wa min adhabinn-nar.",
     "translation": "O Allah, forgive him, have mercy on him, grant him well-being and pardon him.",
     "whenToRecite": "When making dua for a deceased Muslim.",
     "reference": {
@@ -137,4 +138,5 @@
       "number": "1284"
     },
     "repeat": 1
-  }]
+  }
+]

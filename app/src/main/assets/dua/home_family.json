@@ -1,17 +1,18 @@
-[{
-  "id": 4001,
-  "title": "Entering the Home",
-  "arabic": "بِسْمِ اللَّهِ وَلَجْنَا، وَبِسْمِ اللَّهِ خَرَجْنَا، وَعَلَىٰ رَبِّنَا تَوَكَّلْنَا",
-  "transliteration": "Bismillahi walajna, wa bismillahi kharajna, wa 'ala Rabbina tawakkalna.",
-  "translation": "In the Name of Allah we enter, in the Name of Allah we leave, and upon our Lord we place our trust.",
-  "whenToRecite": "When entering your home.",
-  "reference": {
-    "book": "Hisnul Muslim",
-    "hadith": "Sunan Abu Dawood",
-    "number": "5096"
+[
+  {
+    "id": 4001,
+    "title": "Entering the Home",
+    "arabic": "بِسْمِ اللَّهِ وَلَجْنَا، وَبِسْمِ اللَّهِ خَرَجْنَا، وَعَلَىٰ رَبِّنَا تَوَكَّلْنَا",
+    "transliteration": "Bismillahi walajna, wa bismillahi kharajna, wa 'ala Rabbina tawakkalna.",
+    "translation": "In the Name of Allah we enter, in the Name of Allah we leave, and upon our Lord we place our trust.",
+    "whenToRecite": "When entering your home.",
+    "reference": {
+      "book": "Hisnul Muslim",
+      "hadith": "Sunan Abu Dawood",
+      "number": "5096"
+    },
+    "repeat": 1
   },
-  "repeat": 1
-},
   {
     "id": 4002,
     "title": "Leaving the Home",
@@ -74,13 +75,14 @@
     "arabic": "اللَّهُمَّ كَمَا حَسَّنْتَ خَلْقِي فَحَسِّنْ خُلُقِي",
     "transliteration": "Allahumma kama hassanta khalqi fahassin khuluqi.",
     "translation": "O Allah, just as You have made my appearance beautiful, make my character beautiful as well.",
-    "whenToRecite": "When looking in the mirror.",
+    "whenToRecite": "When looking in the mirror. (Note: the mirror-specific chain is disputed)",
     "reference": {
       "book": "Hisnul Muslim",
       "hadith": "Musnad Ahmad",
       "number": "24392"
     },
-    "repeat": 1
+    "repeat": 1,
+    "authenticity": "weak"
   },
   {
     "id": 4007,
@@ -90,9 +92,9 @@
     "translation": "May you wear it out completely, and may Allah grant you a replacement.",
     "whenToRecite": "To congratulate someone wearing new clothes.",
     "reference": {
-      "book": "Hisnul Muslim",
-      "hadith": "Sunan Abu Dawood",
-      "number": "4020"
+      "book": "Jami at-Tirmidhi",
+      "hadith": "Tirmidhi 1017",
+      "number": "1017"
     },
     "repeat": 1
   },
@@ -164,24 +166,11 @@
       "hadith": "Reported from the Salaf",
       "number": "—"
     },
-    "repeat": 1
+    "repeat": 1,
+    "authenticity": "salaf"
   },
   {
     "id": 4013,
-    "title": "Protection from the Evil Eye",
-    "arabic": "أَعُوذُ بِكَلِمَاتِ اللَّهِ التَّامَّاتِ مِنْ شَرِّ مَا خَلَقَ",
-    "transliteration": "A'udhu bi kalimatillahit-tammati min sharri ma khalaq.",
-    "translation": "I seek refuge in the perfect words of Allah from the evil of what He has created.",
-    "whenToRecite": "For protection from harm and the evil eye.",
-    "reference": {
-      "book": "Hisnul Muslim",
-      "hadith": "Sahih Muslim",
-      "number": "2708"
-    },
-    "repeat": 3
-  },
-  {
-    "id": 4014,
     "title": "Supplication for Blessing",
     "arabic": "بَارَكَ اللَّهُ فِيكَ",
     "transliteration": "Barakallahu fik.",
@@ -192,10 +181,11 @@
       "hadith": "Authentic meaning",
       "number": "—"
     },
-    "repeat": 1
+    "repeat": 1,
+    "authenticity": "salaf"
   },
   {
-    "id": 4015,
+    "id": 4014,
     "title": "Supplication for Family",
     "arabic": "رَبَّنَا هَبْ لَنَا مِنْ أَزْوَاجِنَا وَذُرِّيَّاتِنَا قُرَّةَ أَعْيُنٍ وَاجْعَلْنَا لِلْمُتَّقِينَ إِمَامًا",
     "transliteration": "Rabbana hab lana min azwajina wa dhurriyyatina qurrata a'yun waj'alna lil-muttaqina imama.",
@@ -207,4 +197,5 @@
       "number": "25:74"
     },
     "repeat": 1
-  }]
+  }
+]

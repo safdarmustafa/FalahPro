@@ -226,6 +226,7 @@ fun PrayerTrackerScreen(
                 animatedProgress = animatedProgress,
                 pulse = pulse,
                 nextPrayerName = uiState.nextPrayerName,
+                prayerTimes = uiState.prayerTimes,
                 displayHours = displayHours,
                 displayMinutes = displayMinutes,
                 displaySecs = displaySecs,
@@ -317,6 +318,7 @@ private fun PrayerHeroSection(
     animatedProgress: Float,
     pulse: Float,
     nextPrayerName: String,
+    prayerTimes: Map<String, LocalTime>,
     displayHours: Int,
     displayMinutes: Int,
     displaySecs: Int,
@@ -362,13 +364,24 @@ private fun PrayerHeroSection(
                     .background(FalahColors.Forest),
                 contentAlignment = Alignment.Center
             ) {
+                // Determine if the Fajr shown is tomorrow's (all today's prayers have passed).
+                val isTomorrowFajr = nextPrayerName == "Fajr" &&
+                    prayerTimes["Isha"]?.let { currentTime.isAfter(it) } == true
+                val prayerLabel = if (isTomorrowFajr) "Fajr · Tomorrow" else nextPrayerName
+
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.padding(horizontal = FalahSpacing.sm)
                 ) {
                     Text(
-                        text = nextPrayerName,
-                        style = MaterialTheme.typography.titleMedium,
+                        text = "NEXT",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = FalahColors.Ivory.copy(alpha = 0.55f),
+                        maxLines = 1
+                    )
+                    Text(
+                        text = prayerLabel,
+                        style = MaterialTheme.typography.titleSmall,
                         color = FalahColors.SoftBrass,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,

@@ -32,6 +32,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -93,9 +94,16 @@ fun SignUpScreen(
         label = "signupSlideUp"
     )
 
-    val cardColor = if (darkTheme) LoginColors.DarkCard else Color(0xF7FFFCF0)
-    val mutedColor = if (darkTheme) LoginColors.DarkMuted else LoginColors.TextMuted
-    val fieldColors = authTextFieldColors(darkTheme)
+    // App theme stays light, so text styles bake dark ink into Text by default.
+    // System-dark devices still flip Sign Up to a dark card; labels then inherit
+    // that ink on dark green and become nearly invisible. Pin explicit colors.
+    val titleColor = if (darkTheme) LoginColors.DarkText else LoginColors.EmeraldDeep
+    val mutedColor = if (darkTheme) Color(0xFFD5DDD4) else LoginColors.TextSecondary
+    val cardColor = if (darkTheme) Color(0xFF1C3D32) else LoginColors.Ivory
+    val fieldLabelColor = if (darkTheme) Color(0xFFE8EEE6) else LoginColors.TextSecondary
+    val showActionColor = if (darkTheme) LoginColors.GoldSoft else LoginColors.Forest
+    val backLinkColor = if (darkTheme) LoginColors.GoldSoft else LoginColors.Forest
+    val fieldColors = signUpTextFieldColors(darkTheme)
 
     fun attemptSignUp() {
         val name = fullName.trim()
@@ -176,7 +184,7 @@ fun SignUpScreen(
                     fontSize = 28.sp,
                     fontWeight = FontWeight.SemiBold
                 ),
-                color = if (darkTheme) LoginColors.DarkText else LoginColors.EmeraldDeep,
+                color = titleColor,
                 textAlign = TextAlign.Center
             )
 
@@ -205,13 +213,16 @@ fun SignUpScreen(
                     width = 1.dp,
                     brush = Brush.linearGradient(
                         colors = listOf(
-                            Color.White.copy(alpha = if (darkTheme) 0.12f else 0.65f),
-                            LoginColors.GoldSoft.copy(alpha = if (darkTheme) 0.18f else 0.35f),
-                            Color.White.copy(alpha = if (darkTheme) 0.06f else 0.25f)
+                            if (darkTheme) LoginColors.GoldSoft else Color.White,
+                            if (darkTheme) LoginColors.Gold else LoginColors.GoldSoft,
+                            if (darkTheme) Color(0xFFC8D4C8) else LoginColors.Mist
                         )
                     )
                 ),
-                colors = CardDefaults.cardColors(containerColor = cardColor),
+                colors = CardDefaults.cardColors(
+                    containerColor = cardColor,
+                    contentColor = if (darkTheme) LoginColors.DarkText else LoginColors.TextPrimary
+                ),
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Column(
@@ -226,7 +237,7 @@ fun SignUpScreen(
                         modifier = Modifier.fillMaxWidth(),
                         enabled = !isCreating,
                         singleLine = true,
-                        label = { Text("Full Name") },
+                        label = { Text("Full Name", color = fieldLabelColor) },
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                         keyboardActions = KeyboardActions(
                             onNext = { focusManager.moveFocus(FocusDirection.Down) }
@@ -243,7 +254,7 @@ fun SignUpScreen(
                         modifier = Modifier.fillMaxWidth(),
                         enabled = !isCreating,
                         singleLine = true,
-                        label = { Text("Email") },
+                        label = { Text("Email", color = fieldLabelColor) },
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.Email,
                             imeAction = ImeAction.Next
@@ -263,7 +274,7 @@ fun SignUpScreen(
                         modifier = Modifier.fillMaxWidth(),
                         enabled = !isCreating,
                         singleLine = true,
-                        label = { Text("Password") },
+                        label = { Text("Password", color = fieldLabelColor) },
                         visualTransformation = if (passwordVisible) {
                             VisualTransformation.None
                         } else {
@@ -273,8 +284,9 @@ fun SignUpScreen(
                             TextButton(onClick = { passwordVisible = !passwordVisible }) {
                                 Text(
                                     text = if (passwordVisible) "Hide" else "Show",
-                                    color = LoginColors.EmeraldMid,
-                                    fontSize = 12.sp
+                                    color = showActionColor,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold
                                 )
                             }
                         },
@@ -297,7 +309,7 @@ fun SignUpScreen(
                         modifier = Modifier.fillMaxWidth(),
                         enabled = !isCreating,
                         singleLine = true,
-                        label = { Text("Confirm Password") },
+                        label = { Text("Confirm Password", color = fieldLabelColor) },
                         visualTransformation = if (passwordVisible) {
                             VisualTransformation.None
                         } else {
@@ -326,7 +338,8 @@ fun SignUpScreen(
                         colors = ButtonDefaults.buttonColors(
                             containerColor = LoginColors.Emerald,
                             contentColor = Color.White,
-                            disabledContainerColor = LoginColors.Emerald.copy(alpha = 0.55f)
+                            disabledContainerColor = LoginColors.Emerald.copy(alpha = 0.70f),
+                            disabledContentColor = Color.White
                         )
                     ) {
                         if (isCreating) {
@@ -336,9 +349,17 @@ fun SignUpScreen(
                                 color = Color.White
                             )
                             Spacer(modifier = Modifier.width(12.dp))
-                            Text("Creating…", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "Creating…",
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White
+                            )
                         } else {
-                            Text("Create Account", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "Create Account",
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White
+                            )
                         }
                     }
 
@@ -350,7 +371,7 @@ fun SignUpScreen(
                     ) {
                         Text(
                             text = "Back to Login",
-                            color = if (darkTheme) LoginColors.GoldSoft else LoginColors.EmeraldMid,
+                            color = backLinkColor,
                             fontWeight = FontWeight.SemiBold
                         )
                     }
@@ -359,3 +380,20 @@ fun SignUpScreen(
         }
     }
 }
+
+@Composable
+private fun signUpTextFieldColors(darkTheme: Boolean) = OutlinedTextFieldDefaults.colors(
+    focusedTextColor = if (darkTheme) LoginColors.DarkText else LoginColors.TextPrimary,
+    unfocusedTextColor = if (darkTheme) LoginColors.DarkText else LoginColors.TextPrimary,
+    disabledTextColor = if (darkTheme) LoginColors.DarkText else LoginColors.TextPrimary,
+    focusedBorderColor = if (darkTheme) LoginColors.GoldSoft else LoginColors.Forest,
+    unfocusedBorderColor = if (darkTheme) Color(0xFFB8C8B8) else LoginColors.TextSecondary,
+    disabledBorderColor = if (darkTheme) Color(0xFF8A9A8A) else LoginColors.TextMuted,
+    focusedLabelColor = if (darkTheme) LoginColors.GoldSoft else LoginColors.Forest,
+    unfocusedLabelColor = if (darkTheme) Color(0xFFE8EEE6) else LoginColors.TextSecondary,
+    disabledLabelColor = if (darkTheme) Color(0xFFE8EEE6) else LoginColors.TextSecondary,
+    cursorColor = if (darkTheme) LoginColors.GoldSoft else LoginColors.Forest,
+    focusedContainerColor = if (darkTheme) Color(0xFF24483C) else Color(0xFFFFFCF6),
+    unfocusedContainerColor = if (darkTheme) Color(0xFF24483C) else Color(0xFFFFFCF6),
+    disabledContainerColor = if (darkTheme) Color(0xFF24483C) else Color(0xFFFFFCF6)
+)
