@@ -105,6 +105,33 @@ object PrayerReliabilityHelper {
             "Disable battery optimization for Falah Pro in system battery settings."
     }
 
+    /**
+     * Auto-open battery / exact-alarm settings at most once. Xiaomi "Battery saver"
+     * is not the same as Android unrestricted, so re-checking every launch loops
+     * the user into this OEM screen.
+     */
+    fun shouldPromptBatterySettings(context: Context): Boolean {
+        if (isIgnoringBatteryOptimizations(context)) return false
+        return markPromptIfFirst(context, KEY_BATTERY_PROMPT_SHOWN)
+    }
+
+    fun shouldPromptExactAlarmSettings(context: Context): Boolean {
+        if (canScheduleExactAlarms(context)) return false
+        return markPromptIfFirst(context, KEY_EXACT_ALARM_PROMPT_SHOWN)
+    }
+
+    private fun markPromptIfFirst(context: Context, key: String): Boolean {
+        val prefs = context.applicationContext
+            .getSharedPreferences(PROMPT_PREFS, Context.MODE_PRIVATE)
+        if (prefs.getBoolean(key, false)) return false
+        prefs.edit().putBoolean(key, true).apply()
+        return true
+    }
+
+    private const val PROMPT_PREFS = "falah_permission_prompts"
+    private const val KEY_BATTERY_PROMPT_SHOWN = "battery_prompt_shown"
+    private const val KEY_EXACT_ALARM_PROMPT_SHOWN = "exact_alarm_prompt_shown"
+
     enum class OemManufacturer {
         SAMSUNG, XIAOMI, OPPO, VIVO, REALME, ONEPLUS, HUAWEI, HONOR, OTHER
     }

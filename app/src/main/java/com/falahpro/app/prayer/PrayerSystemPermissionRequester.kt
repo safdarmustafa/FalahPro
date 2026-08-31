@@ -55,7 +55,7 @@ fun RequestPrayerSystemPermissions() {
                 }
             }
             1 -> {
-                if (!PrayerReliabilityHelper.isIgnoringBatteryOptimizations(context)) {
+                if (PrayerReliabilityHelper.shouldPromptBatterySettings(context)) {
                     runCatching {
                         nextStepLauncher.launch(
                             PrayerReliabilityHelper.ignoreBatteryOptimizationsIntent(context)
@@ -68,7 +68,7 @@ fun RequestPrayerSystemPermissions() {
             2 -> {
                 val exactIntent = PrayerReliabilityHelper.exactAlarmSettingsIntent(context)
                 if (exactIntent != null &&
-                    !PrayerReliabilityHelper.canScheduleExactAlarms(context)
+                    PrayerReliabilityHelper.shouldPromptExactAlarmSettings(context)
                 ) {
                     runCatching {
                         nextStepLauncher.launch(exactIntent)
