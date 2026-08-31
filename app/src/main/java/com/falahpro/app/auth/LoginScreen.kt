@@ -15,7 +15,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -85,6 +84,14 @@ import io.ktor.client.statement.request
 import kotlinx.coroutines.launch
 
 private const val AUTH_TAG = "FalahProAuth"
+private const val MAX_EMAIL_LENGTH = 254
+private const val MAX_PASSWORD_LENGTH = 72
+
+private fun capEmailInput(value: String): String =
+    value.filter { it != '\n' && it != '\r' }.take(MAX_EMAIL_LENGTH)
+
+private fun capPasswordInput(value: String): String =
+    value.filter { it != '\n' && it != '\r' }.take(MAX_PASSWORD_LENGTH)
 
 // ── Exception formatter — UNCHANGED ────────────────────────────────────────────
 private fun formatAuthException(e: Exception): String {
@@ -121,7 +128,7 @@ fun LoginScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
-    val darkTheme = isSystemInDarkTheme()
+    val darkTheme = false
 
     // ── State — UNCHANGED ─────────────────────────────────────────────────────
     var email by remember { mutableStateOf("") }
@@ -264,9 +271,9 @@ fun LoginScreen(
                     Spacer(Modifier.height(20.dp))
                     LoginFormCard(
                         email = email,
-                        onEmailChange = { email = it },
+                        onEmailChange = { email = capEmailInput(it) },
                         password = password,
-                        onPasswordChange = { password = it },
+                        onPasswordChange = { password = capPasswordInput(it) },
                         passwordVisible = passwordVisible,
                         onPasswordVisibleChange = { passwordVisible = it },
                         isSigningIn = isSigningIn,
@@ -319,9 +326,9 @@ fun LoginScreen(
                     // ── LOGIN CARD — primary focal point ─────────────────────
                     LoginFormCard(
                         email = email,
-                        onEmailChange = { email = it },
+                        onEmailChange = { email = capEmailInput(it) },
                         password = password,
-                        onPasswordChange = { password = it },
+                        onPasswordChange = { password = capPasswordInput(it) },
                         passwordVisible = passwordVisible,
                         onPasswordVisibleChange = { passwordVisible = it },
                         isSigningIn = isSigningIn,
@@ -688,13 +695,15 @@ private fun LoginFooter(darkTheme: Boolean) {
 private fun loginFieldColors(darkTheme: Boolean) = OutlinedTextFieldDefaults.colors(
     focusedTextColor     = if (darkTheme) LoginColors.DarkText else FalahColors.InkBrown,
     unfocusedTextColor   = if (darkTheme) LoginColors.DarkText else FalahColors.InkBrown,
+    disabledTextColor    = if (darkTheme) LoginColors.DarkMuted else FalahColors.InkBrown,
     focusedBorderColor   = if (darkTheme) LoginColors.EmeraldMid else FalahColors.Forest,
     unfocusedBorderColor = if (darkTheme) Color.White.copy(alpha = 0.18f) else FalahColors.WarmSand,
     focusedLabelColor    = if (darkTheme) LoginColors.EmeraldMid else FalahColors.Forest,
     unfocusedLabelColor  = if (darkTheme) LoginColors.DarkMuted else FalahColors.WarmBrown,
     cursorColor          = if (darkTheme) LoginColors.Emerald else FalahColors.Forest,
-    focusedContainerColor   = Color.Transparent,
-    unfocusedContainerColor = Color.Transparent
+    focusedContainerColor   = if (darkTheme) Color.Transparent else FalahColors.Ivory,
+    unfocusedContainerColor = if (darkTheme) Color.Transparent else FalahColors.Ivory,
+    disabledContainerColor  = if (darkTheme) Color.Transparent else FalahColors.Ivory
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -736,7 +745,7 @@ private fun ForgotPasswordDialog(
                 Spacer(modifier = Modifier.height(14.dp))
                 OutlinedTextField(
                     value = resetEmail,
-                    onValueChange = { resetEmail = it },
+                    onValueChange = { resetEmail = capEmailInput(it) },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !isSending,
                     singleLine = true,

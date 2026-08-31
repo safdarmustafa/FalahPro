@@ -1,9 +1,7 @@
 package com.falahpro.app
 
-import android.Manifest
 import android.graphics.Color as AndroidColor
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.View
@@ -36,6 +34,7 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -44,10 +43,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.core.app.ActivityCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -61,8 +63,10 @@ import com.falahpro.app.dua.DuaListScreen
 import com.falahpro.app.profile.ProfileScreen
 import com.falahpro.app.prayer.PrayerDiagnosticsScreen
 import com.falahpro.app.prayer.PrayerTrackerScreen
+import com.falahpro.app.prayer.RequestPrayerSystemPermissions
 import com.falahpro.app.prayer.rememberPrayerViewModel
 import com.falahpro.app.prayer.rememberPrayerVisualEffects
+import com.falahpro.app.core.scheduler.PrayerEngine
 import com.falahpro.app.qibla.QiblaScreen
 import com.falahpro.app.tasbih.TasbihScreen
 import com.falahpro.app.ui.theme.FalahColors
@@ -91,7 +95,6 @@ class FalahPro : ComponentActivity() {
             provider.iconView.alpha = 0f
             provider.view.alpha = 0f
             provider.remove()
-            window.decorView.postDelayed({ maybeRequestNotifications() }, 400L)
         }
 
         super.onCreate(savedInstanceState)
@@ -128,16 +131,6 @@ class FalahPro : ComponentActivity() {
         }
     }
 
-    private fun maybeRequestNotifications() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ActivityCompat.requestPermissions(
-                this,
-                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-                1
-            )
-        }
-    }
-
     companion object {
         private const val SPLASH_DURATION_MS = 1_000L
     }
@@ -160,6 +153,20 @@ private val ShellTabs = listOf(
 fun AppNavigation(
     onFirstScreenDrawn: () -> Unit = {}
 ) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                PrayerEngine.verifyOnResume(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    RequestPrayerSystemPermissions()
 
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()

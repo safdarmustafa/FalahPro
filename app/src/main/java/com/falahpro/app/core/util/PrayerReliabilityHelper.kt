@@ -17,14 +17,17 @@ object PrayerReliabilityHelper {
     fun canScheduleExactAlarms(context: Context): Boolean =
         PrayerAlarmScheduler.getInstance(context).canScheduleExactAlarms()
 
-    fun openExactAlarmSettings(context: Context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
-                data = Uri.parse("package:${context.packageName}")
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            context.startActivity(intent)
+    fun exactAlarmSettingsIntent(context: Context): Intent? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return null
+        return Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+            data = Uri.parse("package:${context.packageName}")
         }
+    }
+
+    fun openExactAlarmSettings(context: Context) {
+        val intent = exactAlarmSettingsIntent(context) ?: return
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
     }
 
     fun areNotificationsEnabled(context: Context): Boolean {
@@ -51,11 +54,14 @@ object PrayerReliabilityHelper {
         return powerManager.isIgnoringBatteryOptimizations(context.packageName)
     }
 
-    fun requestIgnoreBatteryOptimizations(context: Context) {
-        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+    fun ignoreBatteryOptimizationsIntent(context: Context): Intent =
+        Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
             data = Uri.parse("package:${context.packageName}")
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK
         }
+
+    fun requestIgnoreBatteryOptimizations(context: Context) {
+        val intent = ignoreBatteryOptimizationsIntent(context)
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         context.startActivity(intent)
     }
 

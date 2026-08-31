@@ -55,18 +55,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.coerceIn
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -77,15 +73,27 @@ import com.falahpro.app.core.scheduler.PrayerEngine
 import com.falahpro.app.core.util.PrayerConstants
 import com.falahpro.app.data.AzanMode
 import com.falahpro.app.data.DataStoreManager
+import com.falahpro.app.ui.theme.FalahArabicTextStyle
 import com.falahpro.app.ui.theme.FalahColors
 import com.falahpro.app.ui.theme.FalahSpacing
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import java.time.LocalDate
-import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import kotlin.math.cos
 import kotlin.math.sin
+
+private val prayerArabicNames = mapOf(
+    "Fajr" to "الفجر",
+    "Dhuhr" to "الظهر",
+    "Asr" to "العصر",
+    "Maghrib" to "المغرب",
+    "Isha" to "العشاء"
+)
+
+private fun getHijriDateString(): String {
+    return ""
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Visual effects state — UNCHANGED (activity-scoped, signature must match FalahPro.kt)
@@ -188,6 +196,20 @@ fun PrayerTrackerScreen(
         }
     }
 
+    // Upcoming salah cannot stay ticked — azan has not happened yet.
+    LaunchedEffect(uiState.prayerStates, uiState.prayerTimes, uiState.currentTime) {
+        if (uiState.prayerTimes.isEmpty()) return@LaunchedEffect
+        val now = uiState.currentTime
+        uiState.prayerStates.forEach { (name, marked) ->
+            if (!marked) return@forEach
+            val start = uiState.prayerTimes[name] ?: return@forEach
+            if (now.isBefore(start)) {
+                viewModel.setPrayerCompleted(name, false)
+                DataStoreManager.savePrayerState(context, name, false)
+            }
+        }
+    }
+
     val prayers = PrayerConstants.PRAYER_NAMES
     val formatter = DateTimeFormatter.ofPattern("hh:mm a")
 
@@ -219,10 +241,6 @@ fun PrayerTrackerScreen(
         val isCompact = maxWidth < 360.dp
         val hPad = if (isCompact) FalahSpacing.screenCompact else FalahSpacing.screenRegular
 
-        // Responsive hero circle: 52% of width, clamped 160–220dp
-        val progressDiameter = (maxWidth * 0.52f).coerceIn(160.dp, 220.dp)
-        val innerDiameter = progressDiameter * 0.72f
-
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -230,28 +248,17 @@ fun PrayerTrackerScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             PrayerScreenHeader(cityName = uiState.cityName)
-
-            PrayerReliabilityBanner()
-
             Spacer(Modifier.height(FalahSpacing.sm))
-
             PrayerHeroCard(
-                nextPrayerName = uiState.nextPrayerName,
-                prayerTimes = uiState.prayerTimes,
-                currentTime = uiState.currentTime,
+                uiState = uiState,
                 displayHours = displayHours,
                 displayMinutes = displayMinutes,
                 displaySecs = displaySecs,
                 animatedProgress = animatedProgress,
-                completedCount = uiState.completedCount,
-                cityName = uiState.cityName,
-                sunriseTime = uiState.sunriseTime,
                 formatter = formatter,
                 hPad = hPad
             )
-
             Spacer(Modifier.height(FalahSpacing.md))
-
             AzanModeCard(
                 azanMode = azanMode,
                 onToggle = {
@@ -269,9 +276,7 @@ fun PrayerTrackerScreen(
                 },
                 modifier = Modifier.padding(horizontal = hPad)
             )
-
             Spacer(Modifier.height(FalahSpacing.md))
-
             PrayerScheduleCard(
                 prayers = prayers,
                 uiState = uiState,
@@ -285,15 +290,10 @@ fun PrayerTrackerScreen(
                     }
                 }
             )
-
             Spacer(Modifier.height(FalahSpacing.xl))
         }
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Header
-// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun PrayerScreenHeader(cityName: String) {
@@ -318,14 +318,15 @@ private fun PrayerScreenHeader(cityName: String) {
             Icon(
                 imageVector = Icons.Outlined.LocationOn,
                 contentDescription = null,
-                tint = FalahColors.WarmBrown,
+                tint = FalahColors.Forest,
                 modifier = Modifier.size(12.dp)
             )
             Spacer(Modifier.width(3.dp))
             Text(
                 text = cityName,
                 style = MaterialTheme.typography.labelSmall,
-                color = FalahColors.WarmBrown,
+                fontWeight = FontWeight.Medium,
+                color = FalahColors.InkBrown,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -339,28 +340,49 @@ private fun PrayerScreenHeader(cityName: String) {
     )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Hero
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 private fun PrayerHeroCard(
-    nextPrayerName: String,
-    prayerTimes: Map<String, LocalTime>,
-    currentTime: LocalTime,
+    uiState: PrayerUiState,
     displayHours: Int,
     displayMinutes: Int,
     displaySecs: Int,
     animatedProgress: Float,
-    completedCount: Int,
-    cityName: String,
-    sunriseTime: LocalTime?,
     formatter: DateTimeFormatter,
     hPad: Dp
 ) {
-    val isTomorrowFajr = nextPrayerName == "Fajr" &&
+    val prayerOrder = listOf("Fajr", "Dhuhr", "Asr", "Maghrib", "Isha")
+    val currentTime = uiState.currentTime
+    val prayerTimes = uiState.prayerTimes
+
+    val currentPrayer = prayerOrder.lastOrNull { name ->
+        prayerTimes[name]?.let { currentTime.isAfter(it) } == true
+    }
+
+    val nextPrayer = prayerOrder.firstOrNull { name ->
+        prayerTimes[name]?.let { currentTime.isBefore(it) } == true
+    } ?: "Fajr"
+
+    val isTomorrowFajr = nextPrayer == "Fajr" &&
         prayerTimes["Isha"]?.let { currentTime.isAfter(it) } == true
-    val prayerLabel = if (isTomorrowFajr) "Fajr · Tomorrow" else nextPrayerName
+
+    val heroIsCurrent = currentPrayer != null
+    val heroPrayer = currentPrayer ?: nextPrayer
+    val heroArabic = prayerArabicNames[heroPrayer] ?: ""
+    val heroEyebrow = if (heroIsCurrent) "Current Prayer" else "Next Prayer"
+    val heroCdLabel = if (heroIsCurrent) "Ends In" else "Starts In"
+    val heroTime = prayerTimes[heroPrayer]?.format(formatter) ?: "--:--"
+    val heroSubText = if (heroIsCurrent)
+        "Started at $heroTime"
+    else if (isTomorrowFajr)
+        "Starts tomorrow · $heroTime"
+    else
+        "Starts at $heroTime"
+
+    val nextPrayerTime = prayerTimes[nextPrayer]?.format(formatter) ?: "--:--"
+    val nextLabel = if (isTomorrowFajr) "Fajr Tomorrow · $nextPrayerTime"
+    else "$nextPrayer · $nextPrayerTime"
+
+    val hijriDate = getHijriDateString()
 
     Box(
         modifier = Modifier
@@ -369,197 +391,321 @@ private fun PrayerHeroCard(
             .clip(RoundedCornerShape(16.dp))
             .background(FalahColors.Forest)
     ) {
-        Canvas(
-            modifier = Modifier.matchParentSize()
-        ) {
-            val paint = android.graphics.Paint().apply {
+        Canvas(modifier = Modifier.matchParentSize()) {
+            fun stroke(alpha: Int, widthDp: Float) = android.graphics.Paint().apply {
                 style = android.graphics.Paint.Style.STROKE
-                strokeWidth = 0.8.dp.toPx()
-                color = android.graphics.Color.argb(18, 196, 163, 90)
+                strokeWidth = widthDp.dp.toPx()
+                color = android.graphics.Color.argb(alpha, 196, 163, 90)
                 isAntiAlias = true
+                strokeJoin = android.graphics.Paint.Join.MITER
             }
-            val stepX = 40.dp.toPx()
-            val stepY = 40.dp.toPx()
-            val cols = (size.width / stepX + 2).toInt()
-            val rows = (size.height / stepY + 2).toInt()
-            for (row in 0..rows) {
-                for (col in 0..cols) {
-                    val cx = col * stepX
-                    val cy = row * stepY
-                    val r1 = 18.dp.toPx()
-                    val r2 = 12.dp.toPx()
-                    val path = android.graphics.Path()
-                    for (i in 0 until 6) {
-                        val angle = Math.toRadians(i * 60.0 - 30.0)
-                        val x = cx + (r1 * cos(angle)).toFloat()
-                        val y = cy + (r1 * sin(angle)).toFloat()
+            val lattice = stroke(11, 0.6f)
+            val starPaint = stroke(26, 1.0f)
+            val rosette = stroke(16, 0.75f)
+            val native = drawContext.canvas.nativeCanvas
+            val step = 56.dp.toPx()
+
+            fun polygon(
+                cx: Float,
+                cy: Float,
+                r: Float,
+                sides: Int,
+                rotDeg: Double,
+                p: android.graphics.Paint
+            ) {
+                val path = android.graphics.Path()
+                for (i in 0 until sides) {
+                    val a = Math.toRadians(i * (360.0 / sides) + rotDeg)
+                    val x = cx + (r * cos(a)).toFloat()
+                    val y = cy + (r * sin(a)).toFloat()
+                    if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                }
+                path.close()
+                native.drawPath(path, p)
+            }
+
+            fun khatam(cx: Float, cy: Float, r: Float, p: android.graphics.Paint) {
+                val path = android.graphics.Path()
+                for (rot in listOf(0.0, 45.0)) {
+                    for (i in 0 until 4) {
+                        val a = Math.toRadians(i * 90.0 + rot)
+                        val x = cx + (r * cos(a)).toFloat()
+                        val y = cy + (r * sin(a)).toFloat()
                         if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
                     }
                     path.close()
-                    drawContext.canvas.nativeCanvas.drawPath(path, paint)
-                    val path2 = android.graphics.Path()
-                    for (i in 0 until 6) {
-                        val angle = Math.toRadians(i * 60.0 - 30.0)
-                        val x = cx + (r2 * cos(angle)).toFloat()
-                        val y = cy + (r2 * sin(angle)).toFloat()
-                        if (i == 0) path2.moveTo(x, y) else path2.lineTo(x, y)
-                    }
-                    path2.close()
-                    drawContext.canvas.nativeCanvas.drawPath(path2, paint)
+                }
+                native.drawPath(path, p)
+            }
+
+            fun star8(cx: Float, cy: Float, outer: Float, inner: Float, p: android.graphics.Paint) {
+                val path = android.graphics.Path()
+                for (i in 0 until 16) {
+                    val r = if (i % 2 == 0) outer else inner
+                    val a = Math.toRadians(i * 22.5 - 90.0)
+                    val x = cx + (r * cos(a)).toFloat()
+                    val y = cy + (r * sin(a)).toFloat()
+                    if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                }
+                path.close()
+                native.drawPath(path, p)
+            }
+
+            val cols = (size.width / step + 3).toInt()
+            val rows = (size.height / step + 3).toInt()
+
+            for (row in -1..rows) {
+                val y = row * step
+                native.drawLine(-step, y, size.width + step, y, lattice)
+            }
+            for (col in -1..cols) {
+                val x = col * step
+                native.drawLine(x, -step, x, size.height + step, lattice)
+            }
+            for (i in -rows..cols + rows) {
+                val x0 = i * step
+                native.drawLine(x0, -step, x0 + size.height + step * 2, size.height + step, lattice)
+                native.drawLine(x0, -step, x0 - size.height - step * 2, size.height + step, lattice)
+            }
+
+            for (row in 0..rows) {
+                val xOff = if (row % 2 == 0) 0f else step / 2f
+                for (col in 0..cols) {
+                    val cx = col * step + xOff
+                    val cy = row * step
+                    polygon(cx, cy, 20.dp.toPx(), 8, 22.5, rosette)
+                    khatam(cx, cy, 14.dp.toPx(), starPaint)
+                    star8(cx, cy, 8.dp.toPx(), 3.6.dp.toPx(), rosette)
                 }
             }
         }
 
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(FalahSpacing.md)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
-            ) {
-                Column {
-                    Text(
-                        text = "NEXT PRAYER",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            letterSpacing = 2.sp
-                        ),
-                        color = FalahColors.Brass
-                    )
-                    Spacer(Modifier.height(FalahSpacing.xxs))
-                    Text(
-                        text = prayerLabel,
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = FalahColors.SoftBrass,
-                        lineHeight = 30.sp
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text = "Starts at ${prayerTimes[nextPrayerName]
-                            ?.format(formatter) ?: "--:--"}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = FalahColors.Ivory
-                    )
-                }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = "TIME LEFT",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            letterSpacing = 2.sp
-                        ),
-                        color = FalahColors.Brass
-                    )
-                    Spacer(Modifier.height(FalahSpacing.xxs))
-                    Text(
-                        text = "%02d:%02d:%02d".format(
-                            displayHours, displayMinutes, displaySecs
-                        ),
-                        style = MaterialTheme.typography.headlineMedium.copy(
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 1.sp,
-                            fontFeatureSettings = "\"tnum\""
-                        ),
-                        color = FalahColors.Ivory
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text = "hrs · min · sec",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = FalahColors.Ivory
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(FalahSpacing.md))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(FalahColors.Brass.copy(alpha = 0.15f))
-            )
-            Spacer(Modifier.height(FalahSpacing.md))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = currentTime.format(formatter),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Light,
-                        color = FalahColors.Ivory
-                    )
-                    Text(
-                        text = LocalDate.now().format(
-                            DateTimeFormatter.ofPattern("EEEE, d MMM")
-                        ),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = FalahColors.Ivory
-                    )
-                }
-                sunriseTime?.let { sunrise ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Outlined.WbSunny,
-                            contentDescription = null,
-                            tint = FalahColors.Brass,
-                            modifier = Modifier.size(13.dp)
-                        )
-                        Spacer(Modifier.width(4.dp))
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(FalahSpacing.md)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = sunrise.format(formatter),
-                            style = MaterialTheme.typography.labelSmall,
+                            text = heroEyebrow,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                letterSpacing = 2.sp,
+                                fontWeight = FontWeight.Bold
+                            ),
                             color = FalahColors.Brass
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = heroPrayer,
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = FalahColors.SoftBrass,
+                            lineHeight = 30.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = heroArabic,
+                            style = FalahArabicTextStyle.copy(
+                                fontSize = 20.sp,
+                                lineHeight = 32.sp,
+                                textAlign = TextAlign.Start,
+                                color = FalahColors.SoftBrass
+                            ),
+                            maxLines = 1
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = heroSubText,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium,
+                            color = FalahColors.Ivory,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Spacer(Modifier.width(FalahSpacing.sm))
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = heroCdLabel,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                letterSpacing = 1.5.sp,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            color = FalahColors.Brass
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "%02d:%02d:%02d".format(
+                                displayHours,
+                                displayMinutes,
+                                displaySecs
+                            ),
+                            style = MaterialTheme.typography.headlineMedium.copy(
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = 0.5.sp,
+                                fontFeatureSettings = "\"tnum\""
+                            ),
+                            color = FalahColors.Ivory
+                        )
+                        Text(
+                            text = "hrs · min · sec",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = FalahColors.Ivory
                         )
                     }
                 }
-            }
 
-            Spacer(Modifier.height(FalahSpacing.md))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "Daily prayers",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = FalahColors.Ivory
-                )
-                Text(
-                    text = "$completedCount of 5",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = FalahColors.Brass
-                )
-            }
-            Spacer(Modifier.height(FalahSpacing.xxs))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(3.dp)
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(FalahColors.Ivory.copy(alpha = 0.1f))
-            ) {
+                Spacer(Modifier.height(FalahSpacing.md))
                 Box(
                     modifier = Modifier
-                        .fillMaxHeight()
-                        .fillMaxWidth(animatedProgress)
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(FalahColors.Brass)
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(FalahColors.Brass.copy(alpha = 0.15f))
                 )
+                Spacer(Modifier.height(FalahSpacing.md))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = currentTime.format(formatter),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Light,
+                            color = FalahColors.Ivory
+                        )
+                        Text(
+                            text = LocalDate.now().format(
+                                DateTimeFormatter.ofPattern("EEEE, d MMM yyyy")
+                            ),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = FalahColors.Ivory
+                        )
+                        if (hijriDate.isNotBlank()) {
+                            Text(
+                                text = hijriDate,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Medium,
+                                color = FalahColors.Brass
+                            )
+                        }
+                    }
+
+                    uiState.sunriseTime?.let { sunrise ->
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(FalahColors.Brass.copy(alpha = 0.1f))
+                                .border(
+                                    1.dp,
+                                    FalahColors.Brass.copy(alpha = 0.18f),
+                                    RoundedCornerShape(999.dp)
+                                )
+                                .padding(
+                                    horizontal = FalahSpacing.sm,
+                                    vertical = 5.dp
+                                ),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.WbSunny,
+                                contentDescription = null,
+                                tint = FalahColors.Brass,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                text = "Sunrise · ${sunrise.format(formatter)}",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = FalahColors.Brass
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(FalahSpacing.md))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Daily prayers",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = FalahColors.Ivory
+                    )
+                    Text(
+                        text = "${uiState.completedCount} of 5",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = FalahColors.Brass
+                    )
+                }
+                Spacer(Modifier.height(FalahSpacing.xxs))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(3.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(FalahColors.Ivory.copy(alpha = 0.08f))
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(animatedProgress)
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(FalahColors.Brass)
+                    )
+                }
+            }
+
+            if (heroIsCurrent) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(FalahColors.Brass.copy(alpha = 0.18f))
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(FalahColors.Brass.copy(alpha = 0.28f))
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(
+                                horizontal = FalahSpacing.md,
+                                vertical = FalahSpacing.xs
+                            ),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "NEXT UP",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                letterSpacing = 2.sp,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            color = FalahColors.Brass
+                        )
+                        Text(
+                            text = nextLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = FalahColors.SoftBrass
+                        )
+                    }
+                }
             }
         }
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Azan mode card
-// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun AzanModeCard(
@@ -596,7 +742,8 @@ private fun AzanModeCard(
                 Text(
                     text = "Prayer Alert",
                     style = MaterialTheme.typography.labelMedium,
-                    color = FalahColors.WarmBrown
+                    fontWeight = FontWeight.SemiBold,
+                    color = FalahColors.InkBrown
                 )
                 Spacer(Modifier.height(FalahSpacing.xxs))
                 Text(
@@ -608,28 +755,25 @@ private fun AzanModeCard(
                 Text(
                     text = description,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = FalahColors.WarmBrown
+                    color = FalahColors.InkBrown
                 )
             }
             Spacer(Modifier.width(FalahSpacing.sm))
             Box(
                 modifier = Modifier
-                    .background(FalahColors.SoftBrass.copy(alpha = 0.55f), RoundedCornerShape(999.dp))
+                    .background(FalahColors.SoftBrass, RoundedCornerShape(999.dp))
                     .padding(horizontal = FalahSpacing.sm, vertical = FalahSpacing.xxs)
             ) {
                 Text(
                     text = "Tap to change",
                     style = MaterialTheme.typography.labelSmall,
-                    color = FalahColors.WarmBrown
+                    fontWeight = FontWeight.SemiBold,
+                    color = FalahColors.Forest
                 )
             }
         }
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Prayer schedule
-// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun PrayerScheduleCard(
@@ -669,7 +813,7 @@ private fun PrayerScheduleCard(
                     .background(FalahColors.Brass.copy(alpha = 0.12f))
                     .border(
                         1.dp,
-                        FalahColors.Brass.copy(alpha = 0.2f),
+                        FalahColors.Brass.copy(alpha = 0.22f),
                         RoundedCornerShape(999.dp)
                     )
                     .padding(
@@ -693,12 +837,12 @@ private fun PrayerScheduleCard(
                 .background(FalahColors.WarmSand.copy(alpha = 0.7f))
         )
 
-        val inWindow = currentWindowPrayer(
-            prayerTimes = uiState.prayerTimes,
-            sunriseTime = uiState.sunriseTime,
-            now = uiState.currentTime
-        )
-        val endTimePrayer = inWindow ?: uiState.nextPrayerName.takeIf { it != "—" }
+        val prayerOrder = listOf("Fajr", "Dhuhr", "Asr", "Maghrib", "Isha")
+        val currentTime = uiState.currentTime
+
+        val currentPrayer = prayerOrder.lastOrNull { name ->
+            uiState.prayerTimes[name]?.let { currentTime.isAfter(it) } == true
+        }
 
         prayers.forEachIndexed { index, prayer ->
             if (index > 0) {
@@ -709,15 +853,39 @@ private fun PrayerScheduleCard(
                         .background(FalahColors.WarmSand.copy(alpha = 0.5f))
                 )
             }
+            val isCurrentPrayer = prayer == currentPrayer
+            val isNextPrayer = prayer == uiState.nextPrayerName && !isCurrentPrayer
+            val isPassed = uiState.prayerTimes[prayer]
+                ?.let { currentTime.isAfter(it) } == true &&
+                !isCurrentPrayer
+
+            val prayerIdx = prayerOrder.indexOf(prayer)
+            val endPrayer = if (prayerIdx + 1 < prayerOrder.size)
+                prayerOrder[prayerIdx + 1]
+            else "Fajr"
+            val endTime = uiState.prayerTimes[endPrayer]
+
+            val minutesToEnd = if (endTime != null && isCurrentPrayer) {
+                val nowSec = currentTime.toSecondOfDay()
+                val endSec = endTime.toSecondOfDay()
+                val diff = if (endSec > nowSec) endSec - nowSec
+                else (86400 - nowSec) + endSec
+                diff / 60
+            } else Int.MAX_VALUE
+
+            val isUrgent = minutesToEnd < 60
+
             PrayerRow(
                 prayer = prayer,
-                prayerTimes = uiState.prayerTimes,
-                sunriseTime = uiState.sunriseTime,
-                isNext = prayer == uiState.nextPrayerName,
-                isCompleted = uiState.prayerStates[prayer] == true,
-                currentTime = uiState.currentTime,
-                showEndTime = prayer == endTimePrayer,
-                formatter = formatter,
+                prayerTime = uiState.prayerTimes[prayer]?.format(formatter) ?: "--:--",
+                isCurrentPrayer = isCurrentPrayer,
+                isNextPrayer = isNextPrayer,
+                isPassed = isPassed,
+                isCompleted = (isCurrentPrayer || isPassed) &&
+                    uiState.prayerStates[prayer] == true,
+                endTimeStr = endTime?.format(formatter),
+                minutesToEnd = minutesToEnd,
+                isUrgent = isUrgent,
                 onClick = { onPrayerClick(prayer) }
             )
         }
@@ -727,27 +895,22 @@ private fun PrayerScheduleCard(
 @Composable
 private fun PrayerRow(
     prayer: String,
-    prayerTimes: Map<String, LocalTime>,
-    sunriseTime: LocalTime?,
-    isNext: Boolean,
+    prayerTime: String,
+    isCurrentPrayer: Boolean,
+    isNextPrayer: Boolean,
+    isPassed: Boolean,
     isCompleted: Boolean,
-    currentTime: LocalTime,
-    showEndTime: Boolean,
-    formatter: DateTimeFormatter,
+    endTimeStr: String?,
+    minutesToEnd: Int,
+    isUrgent: Boolean,
     onClick: () -> Unit
 ) {
-    val prayerTime = prayerTimes[prayer]
-    val endTime = endTimeForPrayer(prayer, prayerTimes, sunriseTime)
-    val isPassed = windowHasEnded(prayer, prayerTime, endTime, currentTime)
+    val arabicName = prayerArabicNames[prayer] ?: ""
 
-    val minutesToEnd = if (endTime != null) {
-        val nowSec = currentTime.toSecondOfDay()
-        val endSec = endTime.toSecondOfDay()
-        val diff = if (endSec > nowSec) endSec - nowSec
-        else (24 * 3600 - nowSec) + endSec
-        diff / 60
-    } else Int.MAX_VALUE
-    val isUrgent = showEndTime && minutesToEnd < 60
+    val rowBg = when {
+        isCurrentPrayer -> FalahColors.Ivory
+        else -> Color.Transparent
+    }
 
     val iconVector = when (prayer) {
         "Fajr" -> Icons.Outlined.NightsStay
@@ -758,52 +921,56 @@ private fun PrayerRow(
         else -> Icons.Outlined.Schedule
     }
 
+    val canMark = isCurrentPrayer || isPassed
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(
-                when {
-                    isNext -> FalahColors.Ivory
-                    isPassed -> Color.Transparent
-                    else -> Color.Transparent
-                }
-            )
+            .background(rowBg)
             .then(
-                if (isNext) Modifier.drawWithContent {
-                    drawContent()
-                    drawRect(
-                        color = FalahColors.Brass,
-                        topLeft = Offset.Zero,
-                        size = Size(3.dp.toPx(), size.height)
-                    )
-                } else Modifier
+                if (canMark) Modifier.clickable(onClick = onClick)
+                else Modifier
             )
-            .clickable(
-                indication = null,
-                interactionSource = remember { MutableInteractionSource() },
-                onClick = onClick
-            )
-            .padding(
-                horizontal = FalahSpacing.md,
-                vertical = FalahSpacing.sm
-            ),
+            .padding(horizontal = FalahSpacing.md, vertical = FalahSpacing.sm),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        Box(
+            modifier = Modifier
+                .width(3.dp)
+                .height(40.dp)
+                .clip(RoundedCornerShape(999.dp))
+                .background(
+                    when {
+                        isCurrentPrayer -> FalahColors.Brass
+                        isPassed -> FalahColors.OldMoneyGreen
+                        else -> Color.Transparent
+                    }
+                )
+        )
+
+        Spacer(Modifier.width(FalahSpacing.sm))
+
         Box(
             modifier = Modifier
                 .size(36.dp)
                 .clip(RoundedCornerShape(10.dp))
                 .background(
-                    if (isNext) FalahColors.Forest
-                    else FalahColors.WarmSand.copy(alpha = 0.45f)
+                    when {
+                        isCurrentPrayer -> FalahColors.Forest
+                        isPassed -> FalahColors.OldMoneyGreen.copy(alpha = 0.12f)
+                        else -> FalahColors.WarmSand.copy(alpha = 0.45f)
+                    }
                 ),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = iconVector,
                 contentDescription = null,
-                tint = if (isNext) FalahColors.SoftBrass
-                else FalahColors.WarmBrown,
+                tint = when {
+                    isCurrentPrayer -> FalahColors.SoftBrass
+                    isPassed -> FalahColors.OldMoneyGreen
+                    else -> FalahColors.InkBrown
+                },
                 modifier = Modifier.size(18.dp)
             )
         }
@@ -814,25 +981,29 @@ private fun PrayerRow(
             Text(
                 text = prayer,
                 style = MaterialTheme.typography.bodyLarge,
-                fontWeight = if (isNext) FontWeight.Bold else FontWeight.Normal,
-                color = when {
-                    isNext -> FalahColors.Forest
-                    isPassed -> FalahColors.WarmBrown
-                    else -> FalahColors.InkBrown
-                },
-                modifier = if (isPassed)
-                    Modifier.alpha(0.55f) else Modifier
+                fontWeight = if (isCurrentPrayer) FontWeight.Bold else FontWeight.Medium,
+                color = if (isCurrentPrayer) FalahColors.Forest else FalahColors.InkBrown,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = prayerTime?.format(formatter) ?: "--:--",
+                text = arabicName,
+                style = FalahArabicTextStyle.copy(
+                    fontSize = 16.sp,
+                    lineHeight = 24.sp,
+                    textAlign = TextAlign.Start,
+                    color = if (isCurrentPrayer) FalahColors.Forest else FalahColors.InkBrown
+                ),
+                maxLines = 1
+            )
+            Text(
+                text = prayerTime,
                 style = MaterialTheme.typography.labelMedium,
-                color = if (isNext) FalahColors.OldMoneyGreen
-                else FalahColors.WarmBrown,
-                modifier = if (isPassed)
-                    Modifier.alpha(0.55f) else Modifier
+                color = if (isCurrentPrayer) FalahColors.OldMoneyGreen else FalahColors.InkBrown,
+                fontWeight = if (isCurrentPrayer) FontWeight.SemiBold else FontWeight.Normal
             )
 
-            if (showEndTime && endTime != null) {
+            if (isCurrentPrayer && endTimeStr != null) {
                 Spacer(Modifier.height(2.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
@@ -840,8 +1011,7 @@ private fun PrayerRow(
                             .size(5.dp)
                             .clip(CircleShape)
                             .background(
-                                if (isUrgent) FalahColors.Danger
-                                else FalahColors.Brass
+                                if (isUrgent) FalahColors.Danger else FalahColors.Brass
                             )
                     )
                     Spacer(Modifier.width(4.dp))
@@ -849,32 +1019,49 @@ private fun PrayerRow(
                         text = if (isUrgent)
                             "${minutesToEnd}min remaining"
                         else
-                            "Ends ${endTime.format(formatter)}",
+                            "Ends at $endTimeStr",
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (isUrgent) FalahColors.Danger
-                        else FalahColors.WarmBrown,
-                        fontWeight = if (isUrgent) FontWeight.Bold
-                        else FontWeight.Normal
+                        color = if (isUrgent) FalahColors.Danger else FalahColors.InkBrown,
+                        fontWeight = if (isUrgent) FontWeight.Bold else FontWeight.Normal
                     )
                 }
             }
         }
 
-        if (isNext) {
+        Spacer(Modifier.width(FalahSpacing.xs))
+
+        if (isCurrentPrayer) {
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(999.dp))
-                    .background(FalahColors.Brass)
-                    .padding(
-                        horizontal = FalahSpacing.sm,
-                        vertical = FalahSpacing.xxs
+                    .background(FalahColors.Forest)
+                    .padding(horizontal = FalahSpacing.sm, vertical = 3.dp)
+            ) {
+                Text(
+                    text = "Now",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = FalahColors.SoftBrass
+                )
+            }
+            Spacer(Modifier.width(FalahSpacing.xs))
+        } else if (isNextPrayer) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(FalahColors.Brass.copy(alpha = 0.15f))
+                    .border(
+                        1.dp,
+                        FalahColors.Brass.copy(alpha = 0.3f),
+                        RoundedCornerShape(999.dp)
                     )
+                    .padding(horizontal = FalahSpacing.sm, vertical = 3.dp)
             ) {
                 Text(
                     text = "Next",
                     style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = FalahColors.Forest
+                    fontWeight = FontWeight.SemiBold,
+                    color = FalahColors.Brass
                 )
             }
             Spacer(Modifier.width(FalahSpacing.xs))
@@ -882,90 +1069,39 @@ private fun PrayerRow(
 
         Box(
             modifier = Modifier
-                .size(22.dp)
+                .size(28.dp)
                 .clip(CircleShape)
+                .then(
+                    if (canMark) Modifier.clickable(onClick = onClick)
+                    else Modifier
+                )
                 .background(
-                    if (isCompleted) FalahColors.Forest
-                    else Color.Transparent
+                    when {
+                        isCompleted && isPassed -> FalahColors.OldMoneyGreen
+                        isCompleted -> FalahColors.Forest
+                        else -> Color.Transparent
+                    }
                 )
                 .border(
-                    width = 1.5.dp,
-                    color = if (isCompleted) FalahColors.Forest
+                    1.5.dp,
+                    if (isCompleted) Color.Transparent
+                    else if (canMark) FalahColors.WarmSand
                     else FalahColors.WarmSand,
-                    shape = CircleShape
+                    CircleShape
                 ),
             contentAlignment = Alignment.Center
         ) {
             if (isCompleted) {
                 Icon(
                     imageVector = Icons.Outlined.Check,
-                    contentDescription = null,
+                    contentDescription = "Mark $prayer prayed",
                     tint = FalahColors.Ivory,
-                    modifier = Modifier.size(12.dp)
+                    modifier = Modifier.size(16.dp)
                 )
             }
         }
     }
 }
-
-private fun endTimeForPrayer(
-    prayer: String,
-    prayerTimes: Map<String, LocalTime>,
-    sunriseTime: LocalTime?
-): LocalTime? = when (prayer) {
-    "Fajr" -> sunriseTime
-    "Dhuhr" -> prayerTimes["Asr"]
-    "Asr" -> prayerTimes["Maghrib"]
-    "Maghrib" -> prayerTimes["Isha"]
-    "Isha" -> prayerTimes["Fajr"]
-    else -> null
-}
-
-private fun isWithinWindow(
-    now: LocalTime,
-    start: LocalTime,
-    end: LocalTime,
-    wrapsMidnight: Boolean
-): Boolean {
-    return if (!wrapsMidnight) {
-        !now.isBefore(start) && now.isBefore(end)
-    } else {
-        !now.isBefore(start) || now.isBefore(end)
-    }
-}
-
-private fun currentWindowPrayer(
-    prayerTimes: Map<String, LocalTime>,
-    sunriseTime: LocalTime?,
-    now: LocalTime
-): String? {
-    for (name in PrayerConstants.PRAYER_NAMES) {
-        val start = prayerTimes[name] ?: continue
-        val end = endTimeForPrayer(name, prayerTimes, sunriseTime) ?: continue
-        if (isWithinWindow(now, start, end, wrapsMidnight = name == "Isha")) {
-            return name
-        }
-    }
-    return null
-}
-
-private fun windowHasEnded(
-    prayer: String,
-    start: LocalTime?,
-    end: LocalTime?,
-    now: LocalTime
-): Boolean {
-    if (start == null || end == null) return false
-    return if (prayer == "Isha") {
-        now.isBefore(start) && !now.isBefore(end)
-    } else {
-        !now.isBefore(end)
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ViewModel helper — UNCHANGED
-// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 fun rememberPrayerViewModel(): PrayerViewModel {

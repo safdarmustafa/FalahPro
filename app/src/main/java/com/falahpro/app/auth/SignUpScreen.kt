@@ -6,7 +6,6 @@ import androidx.compose.animation.core.EaseOutCubic
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -62,6 +61,18 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 
 private const val AUTH_TAG = "FalahProAuth"
+private const val MAX_NAME_LENGTH = 80
+private const val MAX_EMAIL_LENGTH = 254
+private const val MAX_PASSWORD_LENGTH = 72
+
+private fun capNameInput(value: String): String =
+    value.filter { it != '\n' && it != '\r' }.take(MAX_NAME_LENGTH)
+
+private fun capEmailInput(value: String): String =
+    value.filter { it != '\n' && it != '\r' }.take(MAX_EMAIL_LENGTH)
+
+private fun capPasswordInput(value: String): String =
+    value.filter { it != '\n' && it != '\r' }.take(MAX_PASSWORD_LENGTH)
 
 @Composable
 fun SignUpScreen(
@@ -71,7 +82,7 @@ fun SignUpScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
-    val darkTheme = isSystemInDarkTheme()
+    val darkTheme = false
 
     var fullName by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
@@ -233,7 +244,7 @@ fun SignUpScreen(
                 ) {
                     OutlinedTextField(
                         value = fullName,
-                        onValueChange = { fullName = it },
+                        onValueChange = { fullName = capNameInput(it) },
                         modifier = Modifier.fillMaxWidth(),
                         enabled = !isCreating,
                         singleLine = true,
@@ -250,7 +261,7 @@ fun SignUpScreen(
 
                     OutlinedTextField(
                         value = email,
-                        onValueChange = { email = it },
+                        onValueChange = { email = capEmailInput(it) },
                         modifier = Modifier.fillMaxWidth(),
                         enabled = !isCreating,
                         singleLine = true,
@@ -270,7 +281,7 @@ fun SignUpScreen(
 
                     OutlinedTextField(
                         value = password,
-                        onValueChange = { password = it },
+                        onValueChange = { password = capPasswordInput(it) },
                         modifier = Modifier.fillMaxWidth(),
                         enabled = !isCreating,
                         singleLine = true,
@@ -305,7 +316,7 @@ fun SignUpScreen(
 
                     OutlinedTextField(
                         value = confirmPassword,
-                        onValueChange = { confirmPassword = it },
+                        onValueChange = { confirmPassword = capPasswordInput(it) },
                         modifier = Modifier.fillMaxWidth(),
                         enabled = !isCreating,
                         singleLine = true,
