@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import com.falahpro.app.FalahPro
 import com.falahpro.app.core.receiver.PrayerAlarmReceiver
 import com.falahpro.app.core.util.PrayerConstants
 import com.falahpro.app.core.util.PrayerLog
@@ -34,24 +35,79 @@ class PrayerAlarmScheduler(private val context: Context) {
         return getExistingPendingIntent(prayerName, dayOffset) != null
     }
 
+    /**
+     * AZAN-FIX-1: Next upcoming prayer uses setAlarmClock so it appears in the
+     * status bar and survives Doze / MIUI better than setExactAndAllowWhileIdle.
+     */
+    fun scheduleNextPrayerAsAlarmClock(
+        prayerName: String,
+        triggerAtMillis: Long,
+        dayOffset: Int
+    ): Boolean {
+        val requestCode = PrayerConstants.requestCodeFor(prayerName, dayOffset)
+        val alarmIntent = createPendingIntent(prayerName, triggerAtMillis, dayOffset, requestCode)
+        return try {
+            if (canScheduleExactAlarms()) {
+                val showIntent = PendingIntent.getActivity(
+                    context,
+                    requestCode,
+                    Intent(context, FalahPro::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    },
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                // AZAN-FIX-1: AlarmClockInfo shows next prayer in the system UI.
+                alarmManager.setAlarmClock(
+                    AlarmManager.AlarmClockInfo(triggerAtMillis, showIntent),
+                    alarmIntent
+                )
+            } else {
+                // AZAN-FIX-1: Never leave 0 alarms — inexact still wakes the receiver.
+                PrayerLog.exactAlarmDenied()
+                alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerAtMillis,
+                    alarmIntent
+                )
+            }
+            PrayerLog.alarmScheduled(prayerName, triggerAtMillis, dayOffset, requestCode)
+            true
+        } catch (e: Exception) {
+            PrayerLog.error("ALARM_CLOCK_FAILED", e.message ?: "", e)
+            alarmManager.setAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                triggerAtMillis,
+                alarmIntent
+            )
+            PrayerLog.alarmScheduled(prayerName, triggerAtMillis, dayOffset, requestCode)
+            true
+        }
+    }
+
     fun scheduleExactAlarm(
         prayerName: String,
         triggerAtMillis: Long,
         dayOffset: Int
     ): Boolean {
-        if (!canScheduleExactAlarms()) {
-            PrayerLog.exactAlarmDenied()
-            return false
-        }
-
         val requestCode = PrayerConstants.requestCodeFor(prayerName, dayOffset)
         val pendingIntent = createPendingIntent(prayerName, triggerAtMillis, dayOffset, requestCode)
 
-        alarmManager.setExactAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP,
-            triggerAtMillis,
-            pendingIntent
-        )
+        if (canScheduleExactAlarms()) {
+            // AZAN-FIX-1: Remaining today/tomorrow slots stay exact-while-idle.
+            alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                triggerAtMillis,
+                pendingIntent
+            )
+        } else {
+            // AZAN-FIX-1: Inexact fallback — never return 0 alarms.
+            PrayerLog.exactAlarmDenied()
+            alarmManager.setAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                triggerAtMillis,
+                pendingIntent
+            )
+        }
 
         PrayerLog.alarmScheduled(prayerName, triggerAtMillis, dayOffset, requestCode)
         return true

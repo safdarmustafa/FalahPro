@@ -24,6 +24,7 @@ class PrayerAlarmReceiver : BroadcastReceiver() {
         val prayerName = intent.getStringExtra(PrayerConstants.EXTRA_PRAYER_NAME) ?: return
         val triggerAt = intent.getLongExtra(PrayerConstants.EXTRA_TRIGGER_AT_MILLIS, 0L)
         val dayOffset = intent.getIntExtra(PrayerConstants.EXTRA_DAY_OFFSET, 0)
+        val isFgsRetry = intent.getBooleanExtra("is_fgs_retry", false) // AZAN-FIX-4
 
         PrayerLog.receiverEntered(prayerName)
         PrayerLog.alarmFired(prayerName, triggerAt)
@@ -31,7 +32,13 @@ class PrayerAlarmReceiver : BroadcastReceiver() {
         val pendingResult = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
-                PrayerEngine.onPrayerAlarmFiredSync(context, prayerName, triggerAt, dayOffset)
+                PrayerEngine.onPrayerAlarmFiredSync(
+                    context,
+                    prayerName,
+                    triggerAt,
+                    dayOffset,
+                    isFgsRetry = isFgsRetry // AZAN-FIX-4
+                )
             } finally {
                 pendingResult.finish()
             }

@@ -6,9 +6,11 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.time.LocalDate
 
@@ -107,5 +109,26 @@ object DataStoreManager {
                 prefs[AZAN_MODE_KEY] ?: AzanMode.FULL_SOUND.name
             )
         }
+    }
+
+    // AZAN-FIX-3C / AZAN-FIX-7: prompt timestamps (not boolean "asked forever")
+    private val EXACT_ALARM_PROMPT_LAST_SHOWN_MS =
+        longPreferencesKey("exact_alarm_prompt_last_shown_ms")
+    private val OEM_WIZARD_SHOWN_MS = longPreferencesKey("oem_wizard_shown_ms")
+
+    suspend fun getExactAlarmPromptLastShownMs(context: Context): Long {
+        return context.dataStore.data.map { it[EXACT_ALARM_PROMPT_LAST_SHOWN_MS] ?: 0L }.first()
+    }
+
+    suspend fun setExactAlarmPromptLastShownMs(context: Context, value: Long) {
+        context.dataStore.edit { it[EXACT_ALARM_PROMPT_LAST_SHOWN_MS] = value }
+    }
+
+    suspend fun getOemWizardShownMs(context: Context): Long {
+        return context.dataStore.data.map { it[OEM_WIZARD_SHOWN_MS] ?: 0L }.first()
+    }
+
+    suspend fun setOemWizardShownMs(context: Context, value: Long) {
+        context.dataStore.edit { it[OEM_WIZARD_SHOWN_MS] = value }
     }
 }

@@ -65,6 +65,73 @@ object PrayerReliabilityHelper {
         context.startActivity(intent)
     }
 
+    // AZAN-FIX-7
+    fun isXiaomiDevice(): Boolean {
+        val manufacturer = Build.MANUFACTURER
+        val brand = Build.BRAND
+        return manufacturer.equals("Xiaomi", ignoreCase = true) ||
+            manufacturer.equals("Redmi", ignoreCase = true) ||
+            brand.equals("xiaomi", ignoreCase = true) ||
+            brand.equals("redmi", ignoreCase = true) ||
+            brand.equals("poco", ignoreCase = true)
+    }
+
+    // AZAN-FIX-7
+    fun isSamsungDevice(): Boolean =
+        Build.MANUFACTURER.equals("Samsung", ignoreCase = true)
+
+    fun openXiaomiAutostart(context: Context) {
+        val pkg = context.packageName
+        val attempts = listOf(
+            Intent("miui.intent.action.OP_AUTO_START").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            Intent("miui.intent.action.APP_PERM_EDITOR").apply {
+                putExtra("extra_pkgname", pkg)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+        )
+        for (intent in attempts) {
+            try {
+                context.startActivity(intent)
+                return
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    fun openIgnoreBatteryOptimizationSettings(context: Context) {
+        val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        context.startActivity(intent)
+    }
+
+    /** AZAN-FIX-7: Best-effort; MIUI Autostart is not a public AppOp. */
+    fun isXiaomiAutostartLikelyEnabled(context: Context): Boolean {
+        if (!isXiaomiDevice()) return true
+        return isIgnoringBatteryOptimizations(context)
+    }
+
+    /**
+     * AZAN-FIX-3C: Re-prompt exact alarms if still denied and last shown > 24h ago.
+     */
+    suspend fun shouldPromptExactAlarmSettings(context: Context): Boolean {
+        if (canScheduleExactAlarms(context)) return false
+        val last = com.falahpro.app.data.DataStoreManager.getExactAlarmPromptLastShownMs(context)
+        val now = System.currentTimeMillis()
+        val dayMs = 24L * 60L * 60L * 1000L
+        if (last > 0L && now - last < dayMs) return false
+        com.falahpro.app.data.DataStoreManager.setExactAlarmPromptLastShownMs(context, now)
+        return true
+    }
+
+    /** AZAN-FIX-7: OEM wizard once per install. */
+    suspend fun shouldShowOemWizard(context: Context): Boolean {
+        val shown = com.falahpro.app.data.DataStoreManager.getOemWizardShownMs(context)
+        if (shown > 0L) return false
+        com.falahpro.app.data.DataStoreManager.setOemWizardShownMs(context, System.currentTimeMillis())
+        return true
+    }
+
     fun detectOem(): OemManufacturer {
         val brand = Build.BRAND.lowercase()
         val manufacturer = Build.MANUFACTURER.lowercase()
@@ -104,33 +171,6 @@ object PrayerReliabilityHelper {
         OemManufacturer.OTHER ->
             "Disable battery optimization for Falah Pro in system battery settings."
     }
-
-    /**
-     * Auto-open battery / exact-alarm settings at most once. Xiaomi "Battery saver"
-     * is not the same as Android unrestricted, so re-checking every launch loops
-     * the user into this OEM screen.
-     */
-    fun shouldPromptBatterySettings(context: Context): Boolean {
-        if (isIgnoringBatteryOptimizations(context)) return false
-        return markPromptIfFirst(context, KEY_BATTERY_PROMPT_SHOWN)
-    }
-
-    fun shouldPromptExactAlarmSettings(context: Context): Boolean {
-        if (canScheduleExactAlarms(context)) return false
-        return markPromptIfFirst(context, KEY_EXACT_ALARM_PROMPT_SHOWN)
-    }
-
-    private fun markPromptIfFirst(context: Context, key: String): Boolean {
-        val prefs = context.applicationContext
-            .getSharedPreferences(PROMPT_PREFS, Context.MODE_PRIVATE)
-        if (prefs.getBoolean(key, false)) return false
-        prefs.edit().putBoolean(key, true).apply()
-        return true
-    }
-
-    private const val PROMPT_PREFS = "falah_permission_prompts"
-    private const val KEY_BATTERY_PROMPT_SHOWN = "battery_prompt_shown"
-    private const val KEY_EXACT_ALARM_PROMPT_SHOWN = "exact_alarm_prompt_shown"
 
     enum class OemManufacturer {
         SAMSUNG, XIAOMI, OPPO, VIVO, REALME, ONEPLUS, HUAWEI, HONOR, OTHER

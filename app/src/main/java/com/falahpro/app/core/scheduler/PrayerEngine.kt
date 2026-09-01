@@ -1,10 +1,16 @@
 package com.falahpro.app.core.scheduler
 
 import android.Manifest
+import android.app.AlarmManager
+import android.app.ForegroundServiceStartNotAllowedException
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Geocoder
+import android.os.Build
 import androidx.core.content.ContextCompat
+import com.falahpro.app.core.receiver.PrayerAlarmReceiver
 import com.falahpro.app.core.alarm.ExpectedAlarm
 import com.falahpro.app.core.alarm.PrayerAlarmRegistry
 import com.falahpro.app.core.alarm.PrayerAlarmScheduler
@@ -28,6 +34,22 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.util.Locale
 import kotlin.math.abs
+
+/*
+ * AZAN RELIABILITY QA MATRIX
+ * Run before every release on physical device (Xiaomi preferred)
+ *
+ * 1. Fresh install, all permissions granted → Azan plays within ±2 min of prayer time
+ * 2. App swiped from recents → Azan still fires
+ * 3. Normal reboot → Azan fires after boot
+ * 4. MIUI fast reboot → Azan fires after boot
+ * 5. Exact alarm denied → Azan plays (late ok), "Delayed" shown in notification
+ * 6. SILENT mode confirm → no Azan; switch back Full → Azan returns next prayer
+ * 7. Xiaomi "recommended" battery → OEM wizard shown once, Azan still fires
+ * 8. Doze 90 min, alarm fires late → Azan plays IF still within prayer window
+ * 9. Call during Azan → Azan pauses, resumes after call ends (max 5 min gap)
+ * 10. FGS blocked → fallback notification shown + retry alarm scheduled
+ */
 
 /**
  * Central orchestrator — all alarm mutations are mutex-serialized and diff-based.
@@ -96,6 +118,11 @@ object PrayerEngine {
         }
     }
 
+    /** AZAN-FIX-3B: Exact-alarm revoked — keep inexact slots so Azan is not dropped. */
+    fun fallbackToInexact(context: Context) {
+        rescheduleAll(context, reason = "exact_alarm_revoked_inexact")
+    }
+
     fun rescheduleAll(context: Context, reason: String) {
         engineScope.launch { rescheduleAllSync(context, reason) }
     }
@@ -123,21 +150,14 @@ object PrayerEngine {
 
         if (!scheduler.canScheduleExactAlarms()) {
             PrayerLog.exactAlarmDenied()
-            repository.recordReschedule(reason, 0, 0, 0, null, null, emptyList())
-            return
+            // Still arm inexact alarms so Azan is not dropped if the user
+            // backed out of the one-time exact-alarm settings screen.
         }
 
         val azanMode = DataStoreManager.getAzanMode(context).first()
         notificationManager.updateChannelsForMode(azanMode)
 
-        if (azanMode == AzanMode.SILENT) {
-            PrayerLog.warn("AZAN_MODE_SILENT", "all alarms cancelled")
-            scheduler.cancelAlarmsExcept(emptySet())
-            registry.clear()
-            PrayerLog.rescheduleCompleted(0, 0, 0)
-            repository.recordReschedule(reason, 0, 0, 0, null, null, emptyList())
-            return
-        }
+        // AZAN-FIX-2: SILENT must not cancel AlarmManager slots — skip audio at fire time only.
 
         repository.ensureTodayTimesCalculated()
         val expected = buildExpectedAlarms(repository)
@@ -150,13 +170,29 @@ object PrayerEngine {
         var nextPrayerName: String? = null
         var nextAlarmAtMillis: Long? = null
         val now = System.currentTimeMillis()
+        // AZAN-FIX-1: Only the soonest upcoming slot uses setAlarmClock (status bar + Doze).
+        val nextUpcoming = expected
+            .filter { it.triggerAtMillis > now }
+            .minByOrNull { it.triggerAtMillis }
 
         for (alarm in expected) {
             val hadPendingIntent = scheduler.isAlarmPending(alarm.prayerName, alarm.dayOffset)
             val storedTrigger = stored[alarm.requestCode]?.triggerAtMillis
             val triggerDrift = storedTrigger?.let { abs(it - alarm.triggerAtMillis) } ?: Long.MAX_VALUE
 
-            if (scheduler.scheduleExactAlarm(alarm.prayerName, alarm.triggerAtMillis, alarm.dayOffset)) {
+            val scheduled = if (nextUpcoming != null &&
+                alarm.requestCode == nextUpcoming.requestCode
+            ) {
+                scheduler.scheduleNextPrayerAsAlarmClock(
+                    alarm.prayerName,
+                    alarm.triggerAtMillis,
+                    alarm.dayOffset
+                )
+            } else {
+                scheduler.scheduleExactAlarm(alarm.prayerName, alarm.triggerAtMillis, alarm.dayOffset)
+            }
+
+            if (scheduled) {
                 scheduledCount++
                 if (!hadPendingIntent ||
                     storedTrigger == null ||
@@ -314,13 +350,28 @@ object PrayerEngine {
         context: Context,
         prayerName: String,
         triggerAtMillis: Long,
-        dayOffset: Int
+        dayOffset: Int,
+        isFgsRetry: Boolean = false // AZAN-FIX-4
     ) {
         val appContext = context.applicationContext
         var rescheduleReason: String? = null
 
         fireHandlerMutex.withLock {
             val repository = PrayerRepository.getInstance(appContext)
+
+            // AZAN-FIX-4: If this is an FGS retry, skip stale/in-memory checks and go to audio
+            if (isFgsRetry) {
+                if (repository.isPrayerFiredToday(prayerName)) {
+                    // AZAN-FIX-RETRY: Already fired in previous process — skip
+                    PrayerLog.warn("FGS_RETRY_ALREADY_FIRED", prayerName)
+                    rescheduleReason = "fgs_retry_already_fired_$prayerName"
+                    return@withLock
+                }
+                val notificationManager = com.falahpro.app.core.notification.PrayerNotificationManager
+                    .getInstance(appContext)
+                startAzanServiceOrFallback(appContext, prayerName, notificationManager)
+                return@withLock
+            }
 
             PrayerRuntimeState.lastReceiverPrayer = prayerName
             PrayerRuntimeState.lastReceiverAtMillis = System.currentTimeMillis()
@@ -329,13 +380,16 @@ object PrayerEngine {
             if (triggerAtMillis > 0L) {
                 val now = System.currentTimeMillis()
                 val drift = abs(now - triggerAtMillis)
-                if (drift > PrayerConstants.STALE_ALARM_SKIP_MS) {
-                    PrayerLog.warn("STALE_ALARM_SKIPPED", "prayer=$prayerName driftMs=$drift")
+                if (drift > PrayerConstants.STALE_LOG_THRESHOLD_MS) {
+                    PrayerLog.warn("ALARM_LATE", "prayer=$prayerName driftMs=$drift")
+                }
+
+                val nextPrayerStartMs = nextPrayerStartAfter(repository, prayerName)
+                // AZAN-FIX-5: Drop only if we are already in the next salah's window.
+                if (nextPrayerStartMs != null && now > nextPrayerStartMs) {
+                    PrayerLog.warn("STALE_ALARM_SKIPPED", "prayer=$prayerName past_next=$nextPrayerStartMs")
                     rescheduleReason = "stale_alarm_$prayerName"
                     return@withLock
-                }
-                if (drift > PrayerConstants.STALE_ALARM_WARN_MS) {
-                    PrayerLog.warn("ALARM_LATE", "prayer=$prayerName driftMs=$drift")
                 }
 
                 val earlyByMs = triggerAtMillis - now
@@ -361,11 +415,28 @@ object PrayerEngine {
                 val notificationManager = com.falahpro.app.core.notification.PrayerNotificationManager
                     .getInstance(appContext)
 
-                notificationManager.showPrayerNotification(prayerName, azanMode)
+                if (azanMode == AzanMode.SILENT) {
+                    // AZAN-FIX-2: Silent = skip audio, keep schedule
+                    PrayerLog.warn("AZAN_MODE_SILENT", "playback skipped, alarms kept")
+                    rescheduleReason = "silent_skip_$prayerName"
+                    return@withLock
+                }
+
+                val delayMinutes = if (triggerAtMillis > 0L) {
+                    val late = System.currentTimeMillis() - triggerAtMillis
+                    if (late > 60_000L) (late / 60_000L).toInt() else 0
+                } else 0
+
+                notificationManager.showPrayerNotification(
+                    prayerName,
+                    azanMode,
+                    delayMinutes = delayMinutes
+                )
                 repository.recordNotificationEvent(prayerName)
 
+                // AZAN-FIX-2: NOTIFICATION_ONLY keeps alarms, no AzanPlaybackService.
                 if (azanMode == AzanMode.FULL_SOUND) {
-                    com.falahpro.app.core.audio.AzanPlaybackService.start(appContext, prayerName)
+                    startAzanServiceOrFallback(appContext, prayerName, notificationManager)
                 }
             } finally {
                 repository.tryMarkPrayerFiredToday(prayerName)
@@ -376,5 +447,71 @@ object PrayerEngine {
         rescheduleReason?.let { reason ->
             rescheduleAllSync(appContext, reason)
         }
+    }
+
+    // AZAN-FIX-4: FGS from a cached process can throw; notify + retry once.
+    private fun startAzanServiceOrFallback(
+        appContext: Context,
+        prayerName: String,
+        notificationManager: com.falahpro.app.core.notification.PrayerNotificationManager
+    ) {
+        try {
+            com.falahpro.app.core.audio.AzanPlaybackService.start(appContext, prayerName)
+        } catch (e: Exception) {
+            val fgsBlocked = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                e is ForegroundServiceStartNotAllowedException
+            if (fgsBlocked) {
+                PrayerLog.error("FGS_START_BLOCKED", e.message ?: "", e)
+                notificationManager.showMissedAzanFallback(prayerName)
+                // AZAN-FIX-4: Handler retry unreliable if process dies.
+                // Schedule a one-shot exact alarm 60s later so system re-wakes us.
+                val retryMs = System.currentTimeMillis() + 60_000L
+                val retryIntent = Intent(appContext, PrayerAlarmReceiver::class.java).apply {
+                    action = PrayerConstants.ACTION_PRAYER_ALARM
+                    putExtra(PrayerConstants.EXTRA_PRAYER_NAME, prayerName)
+                    putExtra(PrayerConstants.EXTRA_TRIGGER_AT_MILLIS, retryMs)
+                    putExtra(PrayerConstants.EXTRA_DAY_OFFSET, 0)
+                    putExtra("is_fgs_retry", true)
+                }
+                val retryPendingIntent = PendingIntent.getBroadcast(
+                    appContext,
+                    9999,
+                    retryIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                val alarmManager = appContext.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+                // AZAN-FIX-4: Use setAndAllowWhileIdle so it fires even in Doze
+                alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    retryMs,
+                    retryPendingIntent
+                )
+                PrayerLog.event("FGS_RETRY_SCHEDULED", "prayer=$prayerName retryMs=$retryMs")
+            } else {
+                throw e
+            }
+        }
+    }
+
+    /** AZAN-FIX-5: Next fard start after [prayerName] (tomorrow Fajr after Isha). */
+    private suspend fun nextPrayerStartAfter(
+        repository: PrayerRepository,
+        prayerName: String
+    ): Long? {
+        val names = PrayerConstants.PRAYER_NAMES
+        val idx = names.indexOf(prayerName)
+        if (idx < 0) return null
+        val today = LocalDate.now()
+        val (nextName, date) = if (idx < names.lastIndex) {
+            names[idx + 1] to today
+        } else {
+            names[0] to today.plusDays(1)
+        }
+        val time = repository.getPrayerTimesForDate(date)[nextName] ?: return null
+        return PrayerCalculator
+            .toDateTime(date, time)
+            .atZone(ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli()
     }
 }

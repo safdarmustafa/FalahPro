@@ -117,9 +117,15 @@ fun PrayerDiagnosticsScreen(onBack: () -> Unit) {
             DiagnosticRow("Last boot", d.lastBootTime ?: "—")
 
             Section("Permissions")
-            DiagnosticRow("Exact alarms", if (d.exactAlarmPermissionGranted) "GRANTED" else "DENIED")
-            DiagnosticRow("Notifications", if (d.notificationPermissionGranted) "GRANTED" else "DENIED")
-            DiagnosticRow("Battery opt", if (d.batteryOptimizationIgnored) "IGNORED" else "ACTIVE")
+            PermissionDot("Exact alarms", d.exactAlarmPermissionGranted)
+            PermissionDot("Notifications", d.notificationPermissionGranted)
+            PermissionDot("Battery unrestricted", d.batteryOptimizationIgnored)
+            if (PrayerReliabilityHelper.isXiaomiDevice()) {
+                PermissionDot(
+                    "Xiaomi Autostart (best-effort)",
+                    PrayerReliabilityHelper.isXiaomiAutostartLikelyEnabled(context)
+                )
+            }
             DiagnosticRow("OEM", d.oemManufacturer)
             DiagnosticRow("OEM guidance", d.oemGuidance ?: "—")
 
@@ -166,6 +172,12 @@ private fun Section(title: String) {
     Spacer(Modifier.height(12.dp))
     Text(title, color = Color(0xFFE2C07A), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
     Spacer(Modifier.height(4.dp))
+}
+
+@Composable
+private fun PermissionDot(label: String, ok: Boolean) {
+    // AZAN-FIX-7: Live green/red status for Azan delivery permissions.
+    DiagnosticRow(label, if (ok) "● OK" else "● MISSING")
 }
 
 @Composable

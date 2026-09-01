@@ -19,7 +19,11 @@ class BootCompletedReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         val action = intent?.action ?: return
         if (action != Intent.ACTION_BOOT_COMPLETED &&
-            action != Intent.ACTION_MY_PACKAGE_REPLACED
+            action != Intent.ACTION_MY_PACKAGE_REPLACED &&
+            // AZAN-FIX-6: OEM fast reboot does not always send BOOT_COMPLETED.
+            action != "android.intent.action.QUICKBOOT_POWERON" &&
+            action != "com.htc.intent.action.QUICKBOOT_POWERON" &&
+            action != "com.miui.intent.action.BOOT_COMPLETED"
         ) {
             return
         }

@@ -39,9 +39,11 @@ import androidx.compose.material.icons.outlined.NightsStay
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.WbSunny
 import androidx.compose.material.icons.outlined.WbTwilight
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -79,6 +81,7 @@ import com.falahpro.app.ui.theme.FalahSpacing
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import kotlin.math.cos
 import kotlin.math.sin
@@ -90,6 +93,43 @@ private val prayerArabicNames = mapOf(
     "Maghrib" to "المغرب",
     "Isha" to "العشاء"
 )
+
+private val prayerOrderList = listOf("Fajr", "Dhuhr", "Asr", "Maghrib", "Isha")
+
+/** Fajr ends at sunrise, not Dhuhr. Other prayers end at the next salah. */
+private fun prayerEndTime(
+    prayer: String,
+    prayerTimes: Map<String, LocalTime>,
+    sunriseTime: LocalTime?
+): LocalTime? {
+    if (prayer == "Fajr") return sunriseTime
+    val idx = prayerOrderList.indexOf(prayer)
+    if (idx < 0) return null
+    val next = if (idx + 1 < prayerOrderList.size) prayerOrderList[idx + 1] else "Fajr"
+    return prayerTimes[next]
+}
+
+/** Fajr is current only until sunrise; after that until Dhuhr there is no fard window. */
+private fun resolveCurrentPrayer(
+    prayerTimes: Map<String, LocalTime>,
+    currentTime: LocalTime,
+    sunriseTime: LocalTime?
+): String? {
+    val started = prayerOrderList.lastOrNull { name ->
+        prayerTimes[name]?.let { currentTime.isAfter(it) } == true
+    } ?: return null
+    if (started == "Fajr") {
+        val sunrise = sunriseTime ?: return started
+        if (!currentTime.isBefore(sunrise)) return null
+    }
+    return started
+}
+
+private fun secondsUntil(end: LocalTime, now: LocalTime): Int {
+    val nowSec = now.toSecondOfDay()
+    val endSec = end.toSecondOfDay()
+    return if (endSec > nowSec) endSec - nowSec else (86400 - nowSec) + endSec
+}
 
 private fun getHijriDateString(): String {
     return ""
@@ -354,9 +394,11 @@ private fun PrayerHeroCard(
     val currentTime = uiState.currentTime
     val prayerTimes = uiState.prayerTimes
 
-    val currentPrayer = prayerOrder.lastOrNull { name ->
-        prayerTimes[name]?.let { currentTime.isAfter(it) } == true
-    }
+    val currentPrayer = resolveCurrentPrayer(
+        prayerTimes = prayerTimes,
+        currentTime = currentTime,
+        sunriseTime = uiState.sunriseTime
+    )
 
     val nextPrayer = prayerOrder.firstOrNull { name ->
         prayerTimes[name]?.let { currentTime.isBefore(it) } == true
@@ -371,16 +413,38 @@ private fun PrayerHeroCard(
     val heroEyebrow = if (heroIsCurrent) "Current Prayer" else "Next Prayer"
     val heroCdLabel = if (heroIsCurrent) "Ends In" else "Starts In"
     val heroTime = prayerTimes[heroPrayer]?.format(formatter) ?: "--:--"
-    val heroSubText = if (heroIsCurrent)
-        "Started at $heroTime"
-    else if (isTomorrowFajr)
-        "Starts tomorrow · $heroTime"
-    else
-        "Starts at $heroTime"
+    val endForHero = currentPrayer?.let {
+        prayerEndTime(it, prayerTimes, uiState.sunriseTime)
+    }
+    val endTimeFormatted = endForHero?.format(formatter)
+    val heroSubText = when {
+        heroIsCurrent && currentPrayer == "Fajr" && endTimeFormatted != null ->
+            "Started at $heroTime · Ends at Sunrise $endTimeFormatted"
+        heroIsCurrent && endTimeFormatted != null ->
+            "Started at $heroTime · Ends at $endTimeFormatted"
+        heroIsCurrent ->
+            "Started at $heroTime"
+        isTomorrowFajr ->
+            "Starts tomorrow · $heroTime"
+        else ->
+            "Starts at $heroTime"
+    }
 
     val nextPrayerTime = prayerTimes[nextPrayer]?.format(formatter) ?: "--:--"
     val nextLabel = if (isTomorrowFajr) "Fajr Tomorrow · $nextPrayerTime"
     else "$nextPrayer · $nextPrayerTime"
+    val heroEndStripLabel = if (currentPrayer == "Fajr") "ENDS AT" else "NEXT UP"
+    val heroEndStripValue = if (currentPrayer == "Fajr" && endTimeFormatted != null)
+        "Sunrise · $endTimeFormatted"
+    else nextLabel
+    val heroRemainingSeconds = if (heroIsCurrent && endForHero != null) {
+        secondsUntil(endForHero, currentTime)
+    } else {
+        displayHours * 3600 + displayMinutes * 60 + displaySecs
+    }
+    val cdHours = heroRemainingSeconds / 3600
+    val cdMinutes = (heroRemainingSeconds % 3600) / 60
+    val cdSecs = heroRemainingSeconds % 60
 
     val hijriDate = getHijriDateString()
 
@@ -481,7 +545,12 @@ private fun PrayerHeroCard(
         }
 
         Column(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(FalahSpacing.md)) {
+            Column(
+                modifier = Modifier.padding(
+                    horizontal = FalahSpacing.md,
+                    vertical = FalahSpacing.sm
+                )
+            ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -497,25 +566,27 @@ private fun PrayerHeroCard(
                             color = FalahColors.Brass
                         )
                         Spacer(Modifier.height(4.dp))
-                        Text(
-                            text = heroPrayer,
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = FalahColors.SoftBrass,
-                            lineHeight = 30.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = heroArabic,
-                            style = FalahArabicTextStyle.copy(
-                                fontSize = 20.sp,
-                                lineHeight = 32.sp,
-                                textAlign = TextAlign.Start,
-                                color = FalahColors.SoftBrass
-                            ),
-                            maxLines = 1
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = heroPrayer,
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = FalahColors.SoftBrass,
+                                maxLines = 1
+                            )
+                            Text(
+                                text = heroArabic,
+                                style = FalahArabicTextStyle.copy(
+                                    fontSize = 18.sp,
+                                    lineHeight = 28.sp,
+                                    color = FalahColors.SoftBrass.copy(alpha = 0.8f)
+                                ),
+                                maxLines = 1
+                            )
+                        }
                         Spacer(Modifier.height(2.dp))
                         Text(
                             text = heroSubText,
@@ -539,11 +610,11 @@ private fun PrayerHeroCard(
                         Spacer(Modifier.height(4.dp))
                         Text(
                             text = "%02d:%02d:%02d".format(
-                                displayHours,
-                                displayMinutes,
-                                displaySecs
+                                cdHours,
+                                cdMinutes,
+                                cdSecs
                             ),
-                            style = MaterialTheme.typography.headlineMedium.copy(
+                            style = MaterialTheme.typography.headlineSmall.copy(
                                 fontWeight = FontWeight.ExtraBold,
                                 letterSpacing = 0.5.sp,
                                 fontFeatureSettings = "\"tnum\""
@@ -558,14 +629,14 @@ private fun PrayerHeroCard(
                     }
                 }
 
-                Spacer(Modifier.height(FalahSpacing.md))
+                Spacer(Modifier.height(FalahSpacing.sm))
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(1.dp)
                         .background(FalahColors.Brass.copy(alpha = 0.15f))
                 )
-                Spacer(Modifier.height(FalahSpacing.md))
+                Spacer(Modifier.height(FalahSpacing.sm))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -573,19 +644,21 @@ private fun PrayerHeroCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
-                        Text(
-                            text = currentTime.format(formatter),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Light,
-                            color = FalahColors.Ivory
-                        )
-                        Text(
-                            text = LocalDate.now().format(
-                                DateTimeFormatter.ofPattern("EEEE, d MMM yyyy")
-                            ),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = FalahColors.Ivory
-                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                            Text(
+                                text = currentTime.format(formatter),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Light,
+                                color = FalahColors.Ivory
+                            )
+                            Text(
+                                text = LocalDate.now().format(
+                                    DateTimeFormatter.ofPattern("EEEE, d MMM yyyy")
+                                ),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = FalahColors.Ivory
+                            )
+                        }
                         if (hijriDate.isNotBlank()) {
                             Text(
                                 text = hijriDate,
@@ -629,7 +702,7 @@ private fun PrayerHeroCard(
                     }
                 }
 
-                Spacer(Modifier.height(FalahSpacing.md))
+                Spacer(Modifier.height(FalahSpacing.xs))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -646,7 +719,7 @@ private fun PrayerHeroCard(
                         color = FalahColors.Brass
                     )
                 }
-                Spacer(Modifier.height(FalahSpacing.xxs))
+                Spacer(Modifier.height(2.dp))
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -687,7 +760,7 @@ private fun PrayerHeroCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "NEXT UP",
+                            text = heroEndStripLabel,
                             style = MaterialTheme.typography.labelSmall.copy(
                                 letterSpacing = 2.sp,
                                 fontWeight = FontWeight.Bold
@@ -695,7 +768,7 @@ private fun PrayerHeroCard(
                             color = FalahColors.Brass
                         )
                         Text(
-                            text = nextLabel,
+                            text = heroEndStripValue,
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = FalahColors.SoftBrass
@@ -723,6 +796,31 @@ private fun AzanModeCard(
         AzanMode.NOTIFICATION_ONLY -> "Alert without Azan audio"
         AzanMode.SILENT -> "No sound or notification"
     }
+    var confirmSilent by remember { mutableStateOf(false) }
+
+    if (confirmSilent) {
+        AlertDialog(
+            onDismissRequest = { confirmSilent = false },
+            title = { Text("Azan will be silenced") },
+            text = {
+                Text(
+                    "You will receive no Azan sound or notification. " +
+                        "Prayer times will still be tracked."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmSilent = false
+                        onToggle()
+                    }
+                ) { Text("Silence Azan") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmSilent = false }) { Text("Cancel") }
+            }
+        )
+    }
 
     Box(
         modifier = modifier
@@ -733,7 +831,14 @@ private fun AzanModeCard(
             .clickable(
                 indication = null,
                 interactionSource = remember { MutableInteractionSource() },
-                onClick = onToggle
+                onClick = {
+                    // AZAN-FIX-2: Confirm before Silent so alarms are not "cancelled" by accident.
+                    if (azanMode == AzanMode.NOTIFICATION_ONLY) {
+                        confirmSilent = true
+                    } else {
+                        onToggle()
+                    }
+                }
             )
             .padding(FalahSpacing.md)
     ) {
@@ -840,9 +945,11 @@ private fun PrayerScheduleCard(
         val prayerOrder = listOf("Fajr", "Dhuhr", "Asr", "Maghrib", "Isha")
         val currentTime = uiState.currentTime
 
-        val currentPrayer = prayerOrder.lastOrNull { name ->
-            uiState.prayerTimes[name]?.let { currentTime.isAfter(it) } == true
-        }
+        val currentPrayer = resolveCurrentPrayer(
+            prayerTimes = uiState.prayerTimes,
+            currentTime = currentTime,
+            sunriseTime = uiState.sunriseTime
+        )
 
         prayers.forEachIndexed { index, prayer ->
             if (index > 0) {
@@ -859,18 +966,14 @@ private fun PrayerScheduleCard(
                 ?.let { currentTime.isAfter(it) } == true &&
                 !isCurrentPrayer
 
-            val prayerIdx = prayerOrder.indexOf(prayer)
-            val endPrayer = if (prayerIdx + 1 < prayerOrder.size)
-                prayerOrder[prayerIdx + 1]
-            else "Fajr"
-            val endTime = uiState.prayerTimes[endPrayer]
+            val endTime = prayerEndTime(
+                prayer = prayer,
+                prayerTimes = uiState.prayerTimes,
+                sunriseTime = uiState.sunriseTime
+            )
 
             val minutesToEnd = if (endTime != null && isCurrentPrayer) {
-                val nowSec = currentTime.toSecondOfDay()
-                val endSec = endTime.toSecondOfDay()
-                val diff = if (endSec > nowSec) endSec - nowSec
-                else (86400 - nowSec) + endSec
-                diff / 60
+                secondsUntil(endTime, currentTime) / 60
             } else Int.MAX_VALUE
 
             val isUrgent = minutesToEnd < 60

@@ -21,7 +21,8 @@ object PrayerConstants {
     const val REQUEST_CODE_BASE_TOMORROW = 2001
 
     const val STALE_ALARM_WARN_MS = 15 * 60 * 1000L
-    const val STALE_ALARM_SKIP_MS = 60 * 60 * 1000L
+    /** AZAN-FIX-5: Log-only; late Azan still plays until the next salah starts. */
+    const val STALE_LOG_THRESHOLD_MS = 60 * 60 * 1000L
 
     /** Trigger drift beyond this re-schedules an existing PendingIntent. */
     const val ALARM_TRIGGER_TOLERANCE_MS = 60_000L

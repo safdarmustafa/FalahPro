@@ -3,6 +3,8 @@ package com.falahpro.app.core.audio
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.falahpro.app.R
@@ -21,14 +23,24 @@ class AzanPlaybackService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val prayerName = intent?.getStringExtra(EXTRA_PRAYER_NAME) ?: "Prayer"
+        // AZAN-FIX-4: startForeground must run in the first seconds, before any other work.
+        val notification = buildPlaybackNotification(prayerName)
+        // AZAN-FIX-3: Specify mediaPlayback type for Android 10+ compliance
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(
+                NOTIFICATION_ID,
+                notification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
+
         if (!isPlaying.compareAndSet(false, true)) {
             PrayerLog.warn("SERVICE_DUPLICATE_START")
             return START_NOT_STICKY
         }
-
-        val prayerName = intent?.getStringExtra(EXTRA_PRAYER_NAME) ?: "Prayer"
-        val notification = buildPlaybackNotification(prayerName)
-        startForeground(NOTIFICATION_ID, notification)
 
         PrayerRuntimeState.foregroundServiceRunning = true
         PrayerLog.serviceStarted(prayerName)
@@ -72,6 +84,7 @@ class AzanPlaybackService : Service() {
             val intent = Intent(context, AzanPlaybackService::class.java).apply {
                 putExtra(EXTRA_PRAYER_NAME, prayerName)
             }
+            // AZAN-FIX-4: Caller must catch ForegroundServiceStartNotAllowedException.
             context.startForegroundService(intent)
         }
     }

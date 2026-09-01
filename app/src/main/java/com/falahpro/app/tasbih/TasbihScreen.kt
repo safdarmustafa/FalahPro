@@ -2,7 +2,8 @@ package com.falahpro.app.tasbih
 
 import android.media.AudioAttributes
 import android.media.SoundPool
-import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -14,17 +15,15 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -40,12 +39,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
@@ -61,23 +60,22 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.falahpro.app.R
 import com.falahpro.app.data.DataStoreManager
+import com.falahpro.app.ui.theme.FalahArabicTextStyle
 import com.falahpro.app.ui.theme.FalahColors
 import com.falahpro.app.ui.theme.FalahShapes
 import com.falahpro.app.ui.theme.FalahSpacing
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalTime
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Screen
-// ─────────────────────────────────────────────────────────────────────────────
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 
 @Composable
 fun TasbihScreen(
     onProfileClick: () -> Unit = {},
     onReady: () -> Unit = {}
 ) {
-    // ── ALL EXISTING LOGIC UNCHANGED ──────────────────────────────────────────
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var isMuted by remember { mutableStateOf(false) }
@@ -145,6 +143,7 @@ fun TasbihScreen(
 
     var selectedDhikr by remember { mutableStateOf(dhikrList[0]) }
     var count by remember { mutableIntStateOf(0) }
+    var target by remember { mutableIntStateOf(33) }
 
     LaunchedEffect(selectedDhikr) {
         DataStoreManager.getCount(context, selectedDhikr)
@@ -155,13 +154,31 @@ fun TasbihScreen(
             }
     }
 
-    // Fallback if DataStore is slow — still release splash.
     LaunchedEffect(Unit) {
         delay(450)
         hasCountLoaded = true
         signalReady()
     }
-    // ── END LOGIC ─────────────────────────────────────────────────────────────
+
+    val safeTarget = if (target <= 0) 33 else target
+    val filledCount = when {
+        count == 0 -> 0
+        count % safeTarget == 0 -> safeTarget
+        else -> count % safeTarget
+    }
+    val progress = filledCount.toFloat() / safeTarget
+    val animProgress by animateFloatAsState(
+        targetValue = progress,
+        animationSpec = tween(300),
+        label = "tasbih_progress"
+    )
+    val milestone = when {
+        count > 0 && count % safeTarget == 0 -> "✦ ${count / safeTarget}× complete ✦"
+        count == 33 -> "SubhanAllah ×33"
+        count == 66 -> "Alhamdulillah ×33"
+        count == 99 -> "Allahu Akbar ×33"
+        else -> ""
+    }
 
     BoxWithConstraints(
         modifier = Modifier
@@ -172,104 +189,204 @@ fun TasbihScreen(
                 signalReady()
             }
     ) {
-        // Responsive breakpoints
-        val isShortScreen = maxHeight < 600.dp
-        val isCompactWidth = maxWidth < 360.dp
-        val hPad = if (isCompactWidth) FalahSpacing.screenCompact else FalahSpacing.screenRegular
-
-        // Counter diameter: 42% of screen width, clamped 120–190dp
-        val counterSize: Dp = (maxWidth * 0.42f).coerceIn(120.dp, 190.dp)
-
-        // Vertical spacing: reduced on short screens
-        val spaceAfterGreeting = if (isShortScreen) FalahSpacing.xs else FalahSpacing.md
-        val spaceAfterQuote = if (isShortScreen) FalahSpacing.xs else FalahSpacing.md
-        val spaceAfterChips = if (isShortScreen) FalahSpacing.sm else FalahSpacing.lg
-        val spaceAboveActions = if (isShortScreen) FalahSpacing.xs else FalahSpacing.sm
+        val isCompact = maxWidth < 360.dp
+        val hPad = if (isCompact) FalahSpacing.screenCompact else FalahSpacing.screenRegular
 
         Column(modifier = Modifier.fillMaxSize()) {
-
-            // ── Header ────────────────────────────────────────────────────────
             TasbihHeader(
                 onProfileClick = onProfileClick,
                 hPad = hPad
             )
 
-            // ── Scrollable content ────────────────────────────────────────────
             Column(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
                     .padding(horizontal = hPad),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Spacer(Modifier.height(FalahSpacing.md))
+                Spacer(Modifier.height(FalahSpacing.xs))
 
-                // Bismillah
                 Text(
                     text = "بِسْمِ ٱللَّٰهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ",
-                    style = TextStyle(
-                        fontSize = 22.sp,
-                        lineHeight = 38.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        textDirection = TextDirection.Rtl,
-                        textAlign = TextAlign.Center,
+                    style = FalahArabicTextStyle.copy(
+                        fontSize = 24.sp,
+                        lineHeight = 40.sp,
+                        fontWeight = FontWeight.Bold,
                         color = FalahColors.Brass
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                Spacer(Modifier.height(FalahSpacing.xs))
-
-                // Greeting
                 Text(
                     text = greeting,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall,
                     color = FalahColors.WarmBrown,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(Modifier.height(spaceAfterGreeting))
+                Spacer(Modifier.height(FalahSpacing.xs))
 
-                // Quote card
-                TasbihQuoteCard(
-                    quotes = quotes,
-                    quoteIndex = quoteIndex
-                )
-
-                Spacer(Modifier.height(spaceAfterQuote))
-
-                // Dhikr selector
-                DhikrSelector(
-                    dhikrList = dhikrList,
-                    selectedDhikr = selectedDhikr,
-                    onSelect = { dhikr ->
-                        selectedDhikr = dhikr
-                        playClick()
-                    }
-                )
-
-                Spacer(Modifier.height(spaceAfterChips))
-
-                // Counter
-                TasbihCounter(
-                    count = count,
-                    size = counterSize,
-                    onClick = {
-                        playClick()
-                        count++
-                        scope.launch {
-                            DataStoreManager.saveCount(context, selectedDhikr, count)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(FalahSpacing.xs)
+                ) {
+                    dhikrList.forEach { dhikr ->
+                        val selected = dhikr == selectedDhikr
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    if (selected) FalahColors.Forest else FalahColors.WarmSand
+                                )
+                                .border(
+                                    1.dp,
+                                    if (selected) FalahColors.Brass else FalahColors.WarmSand,
+                                    RoundedCornerShape(12.dp)
+                                )
+                                .clickable(
+                                    indication = null,
+                                    interactionSource = remember { MutableInteractionSource() }
+                                ) {
+                                    selectedDhikr = dhikr
+                                    playClick()
+                                }
+                                .padding(vertical = 8.dp, horizontal = 4.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = dhikr,
+                                style = FalahArabicTextStyle.copy(
+                                    fontSize = 16.sp,
+                                    lineHeight = 26.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (selected) FalahColors.SoftBrass
+                                    else FalahColors.InkBrown
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
                     }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    BoxWithConstraints {
+                        val ringFit = minOf(maxWidth, maxHeight) * 0.94f
+                        TasbihBeadRing(
+                            count = count,
+                            filledCount = filledCount,
+                            size = ringFit.coerceIn(150.dp, 230.dp),
+                            onClick = {
+                                playClick()
+                                count++
+                                scope.launch {
+                                    DataStoreManager.saveCount(context, selectedDhikr, count)
+                                }
+                            }
+                        )
+                    }
+                }
+
+                if (milestone.isNotBlank()) {
+                    Text(
+                        text = milestone,
+                        style = TextStyle(
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = FalahColors.Brass,
+                            textAlign = TextAlign.Center,
+                            letterSpacing = 1.sp
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(4.dp))
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(FalahSpacing.sm)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(FalahColors.WarmSand)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .fillMaxWidth(animProgress.coerceIn(0f, 1f))
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(FalahColors.Brass)
+                        )
+                    }
+                    Text(
+                        text = "$filledCount / $safeTarget",
+                        style = TextStyle(
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = FalahColors.Forest
+                        )
+                    )
+                }
+
+                Spacer(Modifier.height(FalahSpacing.xs))
+
+                Row(horizontalArrangement = Arrangement.spacedBy(FalahSpacing.xs)) {
+                    listOf(33, 99, 100).forEach { t ->
+                        val selected = target == t
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(
+                                    if (selected) FalahColors.Brass else FalahColors.WarmSand
+                                )
+                                .border(
+                                    1.dp,
+                                    if (selected) FalahColors.Brass else FalahColors.WarmSand,
+                                    RoundedCornerShape(999.dp)
+                                )
+                                .clickable(
+                                    indication = null,
+                                    interactionSource = remember { MutableInteractionSource() }
+                                ) { target = t }
+                                .padding(horizontal = 20.dp, vertical = 7.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "$t",
+                                style = TextStyle(
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (selected) FalahColors.Forest
+                                    else FalahColors.InkBrown
+                                )
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(FalahSpacing.xs))
+
+                TasbihQuoteCard(
+                    arabic = quotes[quoteIndex].first,
+                    translation = quotes[quoteIndex].second
                 )
 
-                Spacer(Modifier.height(spaceAboveActions))
+                Spacer(Modifier.height(FalahSpacing.xs))
             }
 
-            // ── Actions — always visible, never scrolled away ─────────────────
             TasbihActions(
                 isMuted = isMuted,
                 onReset = {
@@ -286,220 +403,213 @@ fun TasbihScreen(
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Header
-// ─────────────────────────────────────────────────────────────────────────────
-
-@Composable
-private fun TasbihHeader(
-    onProfileClick: () -> Unit,
-    hPad: Dp
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .statusBarsPadding()
-            .padding(horizontal = hPad, vertical = FalahSpacing.sm)
-    ) {
-        TasbihProfileButton(
-            onClick = onProfileClick,
-            modifier = Modifier.align(Alignment.CenterStart)
-        )
-
-        // Title is bounded so it cannot overlap the profile button
-        Text(
-            text = "Tasbih Counter",
-            style = MaterialTheme.typography.titleMedium.copy(
-                fontWeight = FontWeight.SemiBold
-            ),
-            color = FalahColors.Forest,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .align(Alignment.Center)
-                // Start after the 44dp button + its gap
-                .padding(horizontal = 56.dp)
-                .fillMaxWidth()
-        )
-    }
-
-    // Thin separator
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(FalahElevationLine)
-            .background(FalahColors.WarmSand)
-    )
-}
-
-private val FalahElevationLine = 1.dp
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Quote card
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 private fun TasbihQuoteCard(
-    quotes: List<Pair<String, String>>,
-    quoteIndex: Int
+    arabic: String,
+    translation: String
 ) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(FalahShapes.Card)
+            .height(92.dp)
+            .clip(RoundedCornerShape(14.dp))
             .background(FalahColors.ButterCream)
-            .border(1.dp, FalahColors.WarmSand, FalahShapes.Card)
-            .padding(horizontal = FalahSpacing.md, vertical = FalahSpacing.sm)
+            .border(1.dp, FalahColors.WarmSand, RoundedCornerShape(14.dp)),
+        contentAlignment = Alignment.Center
     ) {
-        Crossfade(targetState = quoteIndex, label = "quoteAnim") { index ->
-            val quote = quotes[index]
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = FalahSpacing.md, vertical = FalahSpacing.xs)
+        ) {
+            Text(
+                text = arabic,
+                style = FalahArabicTextStyle.copy(
+                    fontSize = 20.sp,
+                    lineHeight = 36.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = FalahColors.Brass
+                ),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.fillMaxWidth()
-            ) {
-                // Arabic — RTL with generous lineHeight; never clipped
-                Text(
-                    text = quote.first,
-                    style = TextStyle(
-                        fontSize = 22.sp,
-                        lineHeight = 38.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        textDirection = TextDirection.Rtl,
-                        textAlign = TextAlign.Center,
-                        color = FalahColors.Brass
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(Modifier.height(FalahSpacing.xs))
-
-                // Translation
-                Text(
-                    text = quote.second,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = FalahColors.WarmBrown,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = translation,
+                style = TextStyle(
+                    fontSize = 12.sp,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
+                    color = FalahColors.InkBrown
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+@Composable
+private fun TasbihBeadRing(
+    count: Int,
+    filledCount: Int,
+    size: Dp,
+    onClick: () -> Unit
+) {
+    val beadCount = 33
+    Box(
+        modifier = Modifier.size(size),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val cx = this.size.width / 2f
+            val cy = this.size.height / 2f
+            val rPx = this.size.minDimension * 0.42f
+            val native = drawContext.canvas.nativeCanvas
+            val lattice = android.graphics.Paint().apply {
+                style = android.graphics.Paint.Style.STROKE
+                strokeWidth = 0.7.dp.toPx()
+                color = android.graphics.Color.argb(28, 196, 163, 90)
+                isAntiAlias = true
+            }
+            val step = 18.dp.toPx()
+            for (i in -2..8) {
+                native.drawLine(-step, i * step, this.size.width + step, i * step, lattice)
+                native.drawLine(i * step, -step, i * step, this.size.height + step, lattice)
+            }
+
+            drawCircle(
+                color = Color(0xFFC4A35A).copy(alpha = 0.28f),
+                radius = rPx,
+                center = Offset(cx, cy),
+                style = Stroke(width = 2.dp.toPx())
+            )
+
+            val shownFilled = filledCount.coerceAtMost(beadCount)
+            for (i in 0 until beadCount) {
+                val angle = (i.toFloat() / beadCount) * 2f * PI.toFloat() - PI.toFloat() / 2f
+                val x = cx + rPx * cos(angle)
+                val y = cy + rPx * sin(angle)
+                val isFilled = i < shownFilled
+                val beadR = if (isFilled) 8.dp.toPx() else 6.5.dp.toPx()
+                drawCircle(
+                    color = Color(0x28000000),
+                    radius = beadR,
+                    center = Offset(x + 1.2f, y + 1.4f)
+                )
+                drawCircle(
+                    color = if (isFilled) Color(0xFFC4A35A) else Color(0xFFD8CBB4),
+                    radius = beadR,
+                    center = Offset(x, y)
+                )
+                drawCircle(
+                    color = if (isFilled) Color(0xFF9A7B30) else Color(0xFFB9A88A),
+                    radius = beadR,
+                    center = Offset(x, y),
+                    style = Stroke(width = 1.dp.toPx())
+                )
+                drawCircle(
+                    color = Color(0x66FFFFFF),
+                    radius = beadR * 0.28f,
+                    center = Offset(x - beadR * 0.28f, y - beadR * 0.28f)
+                )
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .size(size * 0.46f)
+                .shadow(8.dp, CircleShape, ambientColor = FalahColors.Forest.copy(alpha = 0.22f))
+                .clip(CircleShape)
+                .background(FalahColors.Forest)
+                .border(2.dp, FalahColors.Brass, CircleShape)
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() },
+                    onClick = onClick
+                )
+                .semantics { contentDescription = "Tasbih counter, tap to increment" },
+            contentAlignment = Alignment.Center
+        ) {
+            val countStr = count.toString()
+            val fontSp = when (countStr.length) {
+                in 0..2 -> 36f
+                3 -> 30f
+                4 -> 24f
+                else -> 20f
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = countStr,
+                    style = TextStyle(
+                        fontSize = fontSp.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = FalahColors.Ivory,
+                        textAlign = TextAlign.Center,
+                        letterSpacing = (-0.5).sp
+                    )
+                )
+                Text(
+                    text = "TAP",
+                    style = TextStyle(
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = FalahColors.SoftBrass,
+                        letterSpacing = 2.sp,
+                        textAlign = TextAlign.Center
+                    )
                 )
             }
         }
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Dhikr selector
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
-private fun DhikrSelector(
-    dhikrList: List<String>,
-    selectedDhikr: String,
-    onSelect: (String) -> Unit
+private fun TasbihHeader(
+    onProfileClick: () -> Unit,
+    hPad: Dp
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(FalahSpacing.xs)
-    ) {
-        dhikrList.forEach { dhikr ->
-            DhikrChip(
-                dhikr = dhikr,
-                selected = dhikr == selectedDhikr,
-                onClick = { onSelect(dhikr) },
-                modifier = Modifier.weight(1f)
+    Column(modifier = Modifier.fillMaxWidth().background(FalahColors.Ivory)) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(horizontal = hPad, vertical = FalahSpacing.sm)
+        ) {
+            TasbihProfileButton(
+                onClick = onProfileClick,
+                modifier = Modifier.align(Alignment.CenterStart)
+            )
+
+            Text(
+                text = "Tasbih Counter",
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.SemiBold
+                ),
+                color = FalahColors.Forest,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(horizontal = 56.dp)
+                    .fillMaxWidth()
             )
         }
-    }
-}
 
-@Composable
-private fun DhikrChip(
-    dhikr: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier
-            .clip(FalahShapes.Pill)
-            .background(
-                if (selected) FalahColors.Forest else FalahColors.WarmSand
-            )
-            .clickable(
-                indication = null,
-                interactionSource = remember { MutableInteractionSource() },
-                onClick = onClick
-            )
-            .padding(horizontal = FalahSpacing.sm, vertical = 10.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = dhikr,
-            style = TextStyle(
-                fontSize = 14.sp,
-                lineHeight = 24.sp,
-                fontWeight = FontWeight.SemiBold,
-                textDirection = TextDirection.Rtl,
-                textAlign = TextAlign.Center,
-                color = if (selected) FalahColors.SoftBrass else FalahColors.WarmBrown
-            ),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(FalahElevationLine)
+                .background(FalahColors.WarmSand)
         )
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Counter
-// ─────────────────────────────────────────────────────────────────────────────
-
-@Composable
-private fun TasbihCounter(
-    count: Int,
-    size: Dp,
-    onClick: () -> Unit
-) {
-    // Font scales with circle: ~32% of diameter, clamped so "9999" still fits
-    val baseFontSp = (size.value * 0.28f).coerceIn(22f, 40f)
-    // Shrink text for larger numbers so it stays inside
-    val countStr = count.toString()
-    val fontSp = when (countStr.length) {
-        in 0..3 -> baseFontSp
-        4 -> baseFontSp * 0.82f
-        else -> baseFontSp * 0.68f
-    }
-
-    Box(
-        modifier = Modifier
-            .size(size)
-            .shadow(4.dp, CircleShape, ambientColor = FalahColors.Forest.copy(0.12f))
-            .clip(CircleShape)
-            .background(FalahColors.Forest)
-            .border(2.dp, FalahColors.Brass.copy(alpha = 0.45f), CircleShape)
-            .clickable(
-                indication = null,
-                interactionSource = remember { MutableInteractionSource() },
-                onClick = onClick
-            )
-            .semantics { contentDescription = "Tasbih counter, tap to increment" },
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = countStr,
-            style = TextStyle(
-                fontSize = fontSp.sp,
-                fontWeight = FontWeight.Bold,
-                color = FalahColors.Ivory,
-                textAlign = TextAlign.Center,
-                letterSpacing = (-0.5).sp
-            )
-        )
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Actions footer (always pinned, never scrolled away)
-// ─────────────────────────────────────────────────────────────────────────────
+private val FalahElevationLine = 1.dp
 
 @Composable
 private fun TasbihActions(
@@ -508,73 +618,68 @@ private fun TasbihActions(
     onMuteToggle: () -> Unit,
     hPad: Dp
 ) {
-    // Hairline separator above actions
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(FalahElevationLine)
-            .background(FalahColors.WarmSand)
-    )
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(FalahColors.ButterCream)
-            .padding(horizontal = hPad, vertical = FalahSpacing.sm),
-        horizontalArrangement = Arrangement.spacedBy(FalahSpacing.xs)
-    ) {
-        // Reset
+    Column(modifier = Modifier.fillMaxWidth()) {
         Box(
             modifier = Modifier
-                .weight(1f)
-                .clip(FalahShapes.Input)
+                .fillMaxWidth()
+                .height(FalahElevationLine)
                 .background(FalahColors.WarmSand)
-                .clickable(
-                    indication = null,
-                    interactionSource = remember { MutableInteractionSource() },
-                    onClick = onReset
-                )
-                .padding(vertical = 12.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "Reset",
-                style = MaterialTheme.typography.labelLarge,
-                color = FalahColors.WarmBrown
-            )
-        }
+        )
 
-        // Mute / UnMute
-        Box(
+        Row(
             modifier = Modifier
-                .weight(1f)
-                .clip(FalahShapes.Input)
-                .background(
-                    if (isMuted) FalahColors.WarmBrown.copy(alpha = 0.10f)
-                    else FalahColors.WarmSand
-                )
-                .clickable(
-                    indication = null,
-                    interactionSource = remember { MutableInteractionSource() },
-                    onClick = onMuteToggle
-                )
-                .padding(vertical = 12.dp),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .background(FalahColors.ButterCream)
+                .padding(horizontal = hPad, vertical = FalahSpacing.sm),
+            horizontalArrangement = Arrangement.spacedBy(FalahSpacing.xs)
         ) {
-            Text(
-                text = if (isMuted) "🔇 UnMute" else "🔊 Mute",
-                style = MaterialTheme.typography.labelLarge,
-                color = FalahColors.WarmBrown,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(FalahShapes.Input)
+                    .background(FalahColors.WarmSand)
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() },
+                        onClick = onReset
+                    )
+                    .padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Reset",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = FalahColors.WarmBrown
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(FalahShapes.Input)
+                    .background(
+                        if (isMuted) FalahColors.WarmBrown.copy(alpha = 0.10f)
+                        else FalahColors.WarmSand
+                    )
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() },
+                        onClick = onMuteToggle
+                    )
+                    .padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (isMuted) "Unmute" else "Mute",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = FalahColors.WarmBrown,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Profile button — restyled for Falah ivory palette
-// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun TasbihProfileButton(
@@ -599,16 +704,14 @@ private fun TasbihProfileButton(
         Canvas(modifier = Modifier.size(20.dp)) {
             val w = size.width
             val h = size.height
-            val iconColor = Color(0xFFE8D9A8) // SoftBrass
+            val iconColor = Color(0xFFE8D9A8)
 
-            // Head circle
             drawCircle(
                 color = iconColor,
                 radius = w * 0.22f,
                 center = Offset(w * 0.5f, h * 0.30f)
             )
 
-            // Shoulders
             val torso = Path().apply {
                 moveTo(w * 0.15f, h * 0.92f)
                 cubicTo(w * 0.15f, h * 0.60f, w * 0.32f, h * 0.53f, w * 0.5f, h * 0.53f)

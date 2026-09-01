@@ -29,6 +29,13 @@ class AzanAudioPlayer(
     private var mediaPlayer: MediaPlayer? = null
     private var audioManager: AudioManager? = null
     private var focusRequest: AudioFocusRequest? = null
+    private var isPausedForFocus = false
+    private var pausedForFocusAtMs = 0L
+    private var ducked = false
+    private var normalVolume = 1f
+    private val focusListener = AudioManager.OnAudioFocusChangeListener { change ->
+        handleAudioFocusChange(change)
+    }
     private var wakeLock: PowerManager.WakeLock? = null
     private val mainHandler = Handler(Looper.getMainLooper())
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -81,6 +88,8 @@ class AzanAudioPlayer(
     }
 
     private fun releaseAll() {
+        isPausedForFocus = false
+        ducked = false
         try {
             releasePlayer()
         } finally {
@@ -138,14 +147,6 @@ class AzanAudioPlayer(
 
     private fun requestAudioFocus(): Boolean {
         val manager = audioManager ?: return false
-        val focusListener = AudioManager.OnAudioFocusChangeListener { change ->
-            if (change == AudioManager.AUDIOFOCUS_LOSS ||
-                change == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT
-            ) {
-                stop()
-                mainHandler.post(onComplete)
-            }
-        }
         PrayerLog.event("AUDIO_FOCUS_REQUEST", "usage=USAGE_ALARM gain=AUDIOFOCUS_GAIN_TRANSIENT")
         val granted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
@@ -167,6 +168,65 @@ class AzanAudioPlayer(
             PrayerLog.event("AUDIO_FOCUS_GRANTED")
         }
         return granted
+    }
+
+    // AZAN-FIX-8: Pause/resume instead of permanently stopping Azan.
+    private fun handleAudioFocusChange(change: Int) {
+        val manager = audioManager
+        when (change) {
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> pauseForFocus()
+            AudioManager.AUDIOFOCUS_LOSS -> {
+                val inCall = manager?.mode == AudioManager.MODE_IN_CALL ||
+                    manager?.mode == AudioManager.MODE_IN_COMMUNICATION
+                if (inCall) {
+                    stop()
+                    mainHandler.post(onComplete)
+                } else {
+                    pauseForFocus()
+                }
+            }
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                val player = mediaPlayer ?: return
+                if (!ducked) {
+                    normalVolume = 1f
+                    ducked = true
+                    player.setVolume(0.6f, 0.6f)
+                }
+            }
+            AudioManager.AUDIOFOCUS_GAIN -> {
+                if (ducked) {
+                    mediaPlayer?.setVolume(normalVolume, normalVolume)
+                    ducked = false
+                }
+                if (isPausedForFocus) {
+                    val pausedFor = System.currentTimeMillis() - pausedForFocusAtMs
+                    if (pausedFor > 5 * 60 * 1000L) {
+                        stop()
+                        mainHandler.post(onComplete)
+                    } else {
+                        try {
+                            mediaPlayer?.start()
+                            isPausedForFocus = false
+                        } catch (_: Exception) {
+                            stop()
+                            mainHandler.post(onComplete)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun pauseForFocus() {
+        val player = mediaPlayer ?: return
+        try {
+            if (player.isPlaying) {
+                player.pause()
+                isPausedForFocus = true
+                pausedForFocusAtMs = System.currentTimeMillis()
+            }
+        } catch (_: Exception) {
+        }
     }
 
     private fun abandonAudioFocus() {

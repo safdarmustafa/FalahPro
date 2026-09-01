@@ -65,7 +65,7 @@ class PrayerNotificationManager(private val context: Context) {
         }
     }
 
-    fun showPrayerNotification(prayerName: String, azanMode: AzanMode) {
+    fun showPrayerNotification(prayerName: String, azanMode: AzanMode, delayMinutes: Int = 0) {
         if (azanMode == AzanMode.SILENT) return
 
         if (!PrayerReliabilityHelper.areNotificationsEnabled(context)) {
@@ -85,15 +85,27 @@ class PrayerNotificationManager(private val context: Context) {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val delayedNote = if (delayMinutes > 0) {
+            // AZAN-FIX-5: Late fire still notifies; tell the user why it felt late.
+            "Delayed by $delayMinutes min (battery saver)"
+        } else {
+            null
+        }
         val bigText = buildString {
             append("It's time for $prayerName prayer.\n")
+            if (delayedNote != null) {
+                append(delayedNote)
+                append("\n")
+            }
             append("Tap to open Falah Pro.")
         }
 
         val builder = NotificationCompat.Builder(context, PrayerConstants.NOTIFICATION_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_monochrome)
             .setContentTitle("🕌 $prayerName")
-            .setContentText("It's time for $prayerName prayer")
+            .setContentText(
+                delayedNote ?: "It's time for $prayerName prayer"
+            )
             .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
@@ -118,6 +130,63 @@ class PrayerNotificationManager(private val context: Context) {
         notificationManager.notify(prayerName.hashCode(), builder.build())
         PrayerLog.event("NOTIFICATION_SHOWN", "prayer=$prayerName")
         PrayerLog.notificationPosted(prayerName)
+    }
+
+    /** AZAN-FIX-4: FGS blocked — still wake the user with a max-priority heads-up. */
+    fun showMissedAzanFallback(prayerName: String) {
+        if (!PrayerReliabilityHelper.areNotificationsEnabled(context)) {
+            PrayerLog.warn("NOTIFICATIONS_DISABLED")
+            return
+        }
+        val launchIntent = Intent(context, FalahPro::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val contentPendingIntent = PendingIntent.getActivity(
+            context,
+            prayerName.hashCode() + 17,
+            launchIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val notification = NotificationCompat.Builder(context, PrayerConstants.NOTIFICATION_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_launcher_monochrome)
+            .setContentTitle("Prayer Time: $prayerName")
+            .setContentText("Azan could not play. Tap to open app.")
+            .setStyle(
+                NotificationCompat.BigTextStyle()
+                    .bigText("Azan could not play. Tap to open app.")
+            )
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setAutoCancel(true)
+            .setContentIntent(contentPendingIntent)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
+            .build()
+        notificationManager.notify(prayerName.hashCode() + 17, notification)
+        PrayerLog.event("AZAN_FGS_FALLBACK", "prayer=$prayerName")
+    }
+
+    /** AZAN-FIX-3B: Exact-alarm permission revoked. */
+    fun showExactAlarmRevokedBanner() {
+        if (!PrayerReliabilityHelper.areNotificationsEnabled(context)) return
+        val launchIntent = Intent(context, FalahPro::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pi = PendingIntent.getActivity(
+            context,
+            9101,
+            launchIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val notification = NotificationCompat.Builder(context, PrayerConstants.NOTIFICATION_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_launcher_monochrome)
+            .setContentTitle("Alarms & reminders off")
+            .setContentText("Azan may be delayed. Tap to allow exact alarms.")
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(pi)
+            .build()
+        notificationManager.notify(9101, notification)
     }
 
     companion object {

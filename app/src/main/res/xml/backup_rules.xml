@@ -6,6 +6,8 @@
    See https://developer.android.com/about/versions/12/backup-restore
 -->
 <full-backup-content>
+    <!-- AZAN-FIX-5: Exclude fired flags — stale backup causes missed Azan -->
+    <exclude domain="sharedpref" path="tasbih_prefs.xml"/>
     <!--
    <include domain="sharedpref" path="."/>
    <exclude domain="sharedpref" path="device.xml"/>
